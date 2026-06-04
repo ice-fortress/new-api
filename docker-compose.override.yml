@@ -1,0 +1,8 @@
+# Custom port configuration
+# This file overrides docker-compose.yml settings
+# Original docker-compose.yml remains untouched for easy git pulls
+
+services:
+  new-api:
+    ports: !override
+      - "13579:3000"  # Custom high port: host:container
