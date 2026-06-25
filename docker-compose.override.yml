@@ -1,0 +1,27 @@
+# Custom override configuration
+# This file overrides docker-compose.yml settings
+# Original docker-compose.yml remains untouched for easy git pulls
+
+services:
+  new-api:
+    container_name: newapi-app       # 加用户前缀，避免与宿主机上其他 new-api 容器冲突
+    ports: !override
+      - "30138:3000"  # Custom high port: host:container
+    # 完整覆盖父文件 volumes 列表（Compose 合并规则：列表会整体替换，不是合并）
+    # 数据放 new-api-volumes；日志不属于"数据"，保留在 ./logs
+    volumes:
+      - ./new-api-volumes/new-api/data:/data
+      - ./logs:/app/logs
+
+  redis:
+    container_name: newapi-redis     # 加前缀，避免与宿主机上其他 redis 容器冲突
+    # 新增 bind mount：redis 镜像默认数据目录是 /data
+    # 注意：当前 redis 命令未开启 AOF/RDB，重启后内存数据会丢；bind 的是磁盘持久化目录
+    volumes:
+      - ./new-api-volumes/redis/data:/data
+
+  postgres:
+    container_name: newapi-postgres  # 加前缀，避免与宿主机上其他 postgres 容器冲突
+    # 把命名卷 pg_data 改为 bind mount，便于随项目目录管理
+    volumes:
+      - ./new-api-volumes/postgres/data:/var/lib/postgresql/data
