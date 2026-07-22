@@ -4,6 +4,7 @@
 
 services:
   new-api:
+    image: hub.333449.xyz/calciumion/new-api:latest
     container_name: newapi-app       # 加用户前缀，避免与宿主机上其他 new-api 容器冲突
     ports: !override
       - "30138:3000"  # Custom high port: host:container
@@ -14,6 +15,7 @@ services:
       - ./logs:/app/logs
 
   redis:
+    image: hub.333449.xyz/library/redis:latest
     container_name: newapi-redis     # 加前缀，避免与宿主机上其他 redis 容器冲突
     # 新增 bind mount：redis 镜像默认数据目录是 /data
     # 注意：当前 redis 命令未开启 AOF/RDB，重启后内存数据会丢；bind 的是磁盘持久化目录
@@ -21,6 +23,7 @@ services:
       - ./new-api-volumes/redis/data:/data
 
   postgres:
+    image: hub.333449.xyz/library/postgres:15
     container_name: newapi-postgres  # 加前缀，避免与宿主机上其他 postgres 容器冲突
     # 把命名卷 pg_data 改为 bind mount，便于随项目目录管理
     volumes:
