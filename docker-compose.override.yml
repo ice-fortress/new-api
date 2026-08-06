@@ -13,6 +13,13 @@ services:
     volumes:
       - ./new-api-volumes/new-api/data:/data
       - ./logs:/app/logs
+    # environment 按 key 与父文件合并，这里只需追加/覆盖需要改的项
+    # 两个办公室通过 VPN 互通，异地办公室出口 NAT 后在服务端看是同一个内网 IP（如 192.168.0.139），
+    # 默认按 IP 计数的限流额度会被整个办公室共用、迅速打满导致 429，因此大幅调高，同时保留一个远高于正常流量的兜底上限
+    environment:
+      - CRITICAL_RATE_LIMIT=2000            # 登录/2FA/passkey/OAuth/找回密码等，默认 20 次/20分钟
+      - GLOBAL_API_RATE_LIMIT=3600          # /api 下全部请求，默认 360 次/180秒
+      - GLOBAL_WEB_RATE_LIMIT=1200          # 页面/静态资源，默认 120 次/180秒
 
   redis:
     image: hub.333449.xyz/library/redis:latest
