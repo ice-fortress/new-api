@@ -4,7 +4,7 @@
 
 services:
   new-api:
-    image: hub.333449.xyz/calciumion/new-api:latest
+    image: hub.333449.xyz/calciumion/new-api:v1.0.0-rc.30
     container_name: newapi-app       # 加用户前缀，避免与宿主机上其他 new-api 容器冲突
     ports: !override
       - "30138:3000"  # Custom high port: host:container
