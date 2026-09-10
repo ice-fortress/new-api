@@ -6213,6 +6213,9 @@
     "Zero retention": "零數據保留",
     "Zhipu": "智譜",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Quota billing group": "額度適用群組",
+    "Unrestricted": "不限制",
+    "Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.": "僅抵扣所選群組的請求；不限制時可抵扣任意群組。修改對此方案所有訂閱的後續請求生效，不改變使用者群組。"
   }
 }

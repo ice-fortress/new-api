@@ -202,6 +202,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		addUsedChannel(c, channel.Id)
+		if billingErr := service.ValidateSubscriptionBillingGroup(relayInfo); billingErr != nil {
+			newAPIError = billingErr
+			break
+		}
 		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
 			newAPIError = billingErr
 			break

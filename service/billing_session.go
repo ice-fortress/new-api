@@ -24,16 +24,17 @@ import (
 // BillingSession 封装单次请求的预扣费/结算/退款生命周期。
 // 实现 relaycommon.BillingSettler 接口。
 type BillingSession struct {
-	relayInfo        *relaycommon.RelayInfo
-	funding          FundingSource
-	preConsumedQuota int  // 实际预扣额度（信任用户可能为 0）
-	tokenConsumed    int  // 令牌额度实际扣减量
-	extraReserved    int  // 发送前补充预扣的额度（订阅退款时需要单独回滚）
-	trusted          bool // 是否命中信任额度旁路
-	fundingSettled   bool // funding.Settle 已成功，资金来源已提交
-	settled          bool // Settle 全部完成（资金 + 令牌）
-	refunded         bool // Refund 已调用
-	mu               sync.Mutex
+	relayInfo         *relaycommon.RelayInfo
+	funding           FundingSource
+	subscriptionGroup string // 受限套餐预扣时固定分组，退款仍使用原订阅 ID。
+	preConsumedQuota  int    // 实际预扣额度（信任用户可能为 0）
+	tokenConsumed     int    // 令牌额度实际扣减量
+	extraReserved     int    // 发送前补充预扣的额度（订阅退款时需要单独回滚）
+	trusted           bool   // 是否命中信任额度旁路
+	fundingSettled    bool   // funding.Settle 已成功，资金来源已提交
+	settled           bool   // Settle 全部完成（资金 + 令牌）
+	refunded          bool   // Refund 已调用
+	mu                sync.Mutex
 }
 
 // Settle 根据实际消耗额度进行结算。
@@ -44,6 +45,9 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	defer s.mu.Unlock()
 	if s.settled {
 		return nil
+	}
+	if err := s.checkSubscriptionGroup(); err != nil {
+		return err
 	}
 	delta := actualQuota - s.preConsumedQuota
 	if delta == 0 {
@@ -154,6 +158,10 @@ func (s *BillingSession) Reserve(targetQuota int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if err := s.checkSubscriptionGroup(); err != nil {
+		return err
+	}
+
 	if s.settled || s.refunded || s.trusted || targetQuota <= s.preConsumedQuota {
 		return nil
 	}
@@ -215,6 +223,9 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 			s.tokenConsumed = 0
 		}
 		// TODO: model 层应定义哨兵错误（如 ErrNoActiveSubscription），用 errors.Is 替代字符串匹配
+		if errors.Is(err, model.ErrSubscriptionScopeMismatch) {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+		}
 		if errors.Is(err, ErrInsufficientWalletQuota) {
 			userQuota, quotaErr := model.GetUserQuota(s.relayInfo.UserId, false)
 			if quotaErr != nil {
@@ -233,6 +244,10 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 	}
 
 	s.preConsumedQuota = effectiveQuota
+	// 分组仅在首次预扣成功时固定；后续 Reserve 不再写入，便于安全地检查重试。
+	if sub, ok := s.funding.(*SubscriptionFunding); ok {
+		s.subscriptionGroup = sub.BillingGroup
+	}
 
 	// ---- 同步 RelayInfo 兼容字段 ----
 	s.syncRelayInfo()
@@ -399,10 +414,11 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		session := &BillingSession{
 			relayInfo: relayInfo,
 			funding: &SubscriptionFunding{
-				requestId: relayInfo.RequestId,
-				userId:    relayInfo.UserId,
-				modelName: relayInfo.GetBillingModelName(),
-				amount:    subConsume,
+				requestId:  relayInfo.RequestId,
+				userId:     relayInfo.UserId,
+				modelName:  relayInfo.GetBillingModelName(),
+				usingGroup: relayInfo.UsingGroup,
+				amount:     subConsume,
 			},
 		}
 		// 必须传 subConsume 而非 preConsumedQuota，保证 SubscriptionFunding.amount、
@@ -430,7 +446,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	case "subscription_first":
 		fallthrough
 	default:
-		hasSub, subCheckErr := model.HasActiveUserSubscription(relayInfo.UserId)
+		hasSub, subCheckErr := model.HasActiveUserSubscription(relayInfo.UserId, nil)
 		if subCheckErr != nil {
 			return nil, types.NewError(subCheckErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		}
@@ -441,7 +457,15 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		if apiErr != nil {
 			if apiErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
 				// 仅当用户的活跃订阅允许钱包回退时才回退到钱包，否则返回订阅额度不足错误
-				allowOverflow, overflowErr := model.UserActiveSubscriptionsAllowWalletOverflow(relayInfo.UserId)
+				// 没有适用订阅不能借由钱包回退绕过其他套餐的额度范围。
+				matched, matchErr := model.HasActiveUserSubscription(relayInfo.UserId, &relayInfo.UsingGroup)
+				if matchErr != nil {
+					return nil, types.NewError(matchErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
+				}
+				if !matched {
+					return nil, apiErr
+				}
+				allowOverflow, overflowErr := model.UserActiveSubscriptionsAllowWalletOverflow(relayInfo.UserId, &relayInfo.UsingGroup)
 				if overflowErr != nil {
 					return nil, types.NewError(overflowErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 				}
@@ -454,4 +478,27 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		}
 		return session, nil
 	}
+}
+
+// checkSubscriptionGroup 保证追加预扣及结算不会在路由改组后继续扣原套餐。
+func (s *BillingSession) checkSubscriptionGroup() error {
+	if s.subscriptionGroup != "" && s.subscriptionGroup != s.relayInfo.UsingGroup {
+		return fmt.Errorf("订阅已绑定分组 %s，当前请求不能切换到分组 %s", s.subscriptionGroup, s.relayInfo.UsingGroup)
+	}
+	return nil
+}
+
+// ValidateSubscriptionBillingGroup 必须在每次上游尝试前执行，覆盖所有计价模式和任务重试。
+func ValidateSubscriptionBillingGroup(info *relaycommon.RelayInfo) *types.NewAPIError {
+	if info == nil {
+		return nil
+	}
+	session, ok := info.Billing.(*BillingSession)
+	if !ok {
+		return nil
+	}
+	if err := session.checkSubscriptionGroup(); err != nil {
+		return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+	}
+	return nil
 }

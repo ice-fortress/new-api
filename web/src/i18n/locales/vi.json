@@ -6213,6 +6213,9 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Quota billing group": "Nhóm sử dụng hạn mức",
+    "Unrestricted": "Không giới hạn",
+    "Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.": "Chỉ yêu cầu trong nhóm đã chọn được dùng hạn mức này. Không giới hạn cho phép mọi nhóm. Thay đổi áp dụng cho các yêu cầu tiếp theo của mọi gói đăng ký, không thay đổi nhóm người dùng."
   }
 }

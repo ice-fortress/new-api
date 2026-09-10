@@ -397,6 +397,43 @@ export function SubscriptionsMutateDrawer({
                 />
               </div>
 
+              <FormField
+                control={form.control}
+                name='billing_group'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Quota billing group')}</FormLabel>
+                    <FormControl>
+                      <Combobox
+                        options={[
+                          { value: '__none__', label: t('Unrestricted') },
+                          ...groupOptions
+                            .filter((group) => group !== 'auto')
+                            .map((group) => ({ value: group, label: group })),
+                        ]}
+                        value={field.value || '__none__'}
+                        onValueChange={(value) =>
+                          field.onChange(
+                            value === '__none__' ? '' : (value ?? '')
+                          )
+                        }
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
+                        className='w-full'
+                        placeholder={t('Unrestricted')}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
                 <FormField
                   control={form.control}

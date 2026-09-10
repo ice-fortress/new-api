@@ -6213,6 +6213,9 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Quota billing group": "クォータの適用グループ",
+    "Unrestricted": "制限なし",
+    "Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.": "選択したグループのリクエストのみ、このクォータを使用できます。制限なしの場合は全グループで使用できます。変更は全契約の今後のリクエストに適用され、ユーザーのグループは変更されません。"
   }
 }

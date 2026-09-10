@@ -327,6 +327,11 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		noteTaskQuotaClamp(info, clamp)
 	}
 
+	// 重试切组时必须先拒绝，不能沿用前一次尝试的订阅发送上游请求。
+	if apiErr := service.ValidateSubscriptionBillingGroup(info); apiErr != nil {
+		return nil, service.TaskErrorFromAPIError(apiErr)
+	}
+
 	// 7. 预扣费（仅首次 — 重试时 info.Billing 已存在，跳过）
 	if info.Billing == nil && !info.PriceData.FreeModel {
 		info.ForcePreConsume = true

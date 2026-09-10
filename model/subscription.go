@@ -34,6 +34,7 @@ const (
 )
 
 var (
+	ErrSubscriptionScopeMismatch      = errors.New("subscription request does not match the billing scope")
 	ErrSubscriptionOrderNotFound      = errors.New("subscription order not found")
 	ErrSubscriptionOrderStatusInvalid = errors.New("subscription order status invalid")
 )
@@ -171,6 +172,9 @@ type SubscriptionPlan struct {
 
 	// Max purchases per user (0 = unlimited)
 	MaxPurchasePerUser int `json:"max_purchase_per_user" gorm:"type:int;default:0"`
+
+	// BillingGroup 限定套餐额度的适用分组；nil/空值不限制，修改后作用于所有订阅的后续请求。
+	BillingGroup *string `json:"billing_group,omitempty" gorm:"type:varchar(64)"`
 
 	// Upgrade user group after purchase (empty = no change)
 	UpgradeGroup string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
@@ -862,13 +866,13 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 
 // HasActiveUserSubscription returns whether the user has any active subscription.
 // This is a lightweight existence check to avoid heavy pre-consume transactions.
-func HasActiveUserSubscription(userId int) (bool, error) {
+func HasActiveUserSubscription(userId int, billingGroup *string) (bool, error) {
 	if userId <= 0 {
 		return false, errors.New("invalid userId")
 	}
 	now := common.GetTimestamp()
 	var count int64
-	if err := DB.Model(&UserSubscription{}).
+	if err := subscriptionPlanScope(DB.Model(&UserSubscription{}), billingGroup).
 		Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
 		Count(&count).Error; err != nil {
 		return false, err
@@ -879,13 +883,13 @@ func HasActiveUserSubscription(userId int) (bool, error) {
 // UserActiveSubscriptionsAllowWalletOverflow returns whether wallet balance may be used
 // after the user's subscription quota is exhausted. A single active subscription that
 // disallows wallet overflow (allow_wallet_overflow = false) blocks the fallback.
-func UserActiveSubscriptionsAllowWalletOverflow(userId int) (bool, error) {
+func UserActiveSubscriptionsAllowWalletOverflow(userId int, billingGroup *string) (bool, error) {
 	if userId <= 0 {
 		return false, errors.New("invalid userId")
 	}
 	now := common.GetTimestamp()
 	var strictCount int64
-	if err := DB.Model(&UserSubscription{}).
+	if err := subscriptionPlanScope(DB.Model(&UserSubscription{}), billingGroup).
 		Where("user_id = ? AND status = ? AND end_time > ? AND allow_wallet_overflow = ?",
 			userId, "active", now, false).
 		Count(&strictCount).Error; err != nil {
@@ -1129,6 +1133,7 @@ func AdminResetPlanSubscriptions(planId int, advanceResetTime bool) (*Subscripti
 }
 
 type SubscriptionPreConsumeResult struct {
+	BillingGroup       string // 预扣时确定的限制，配置变化不改变进行中的结算或退款。
 	UserSubscriptionId int
 	PreConsumed        int64
 	AmountTotal        int64
@@ -1294,8 +1299,61 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 	return tx.Save(sub).Error
 }
 
-// PreConsumeUserSubscription pre-consumes from any active subscription total quota.
-func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+// subscriptionPlanScope 按套餐当前设置筛选，nil 用于检查用户是否完全没有订阅。
+// 不读取 UpgradeGroup 快照；NULL/空字符串兼容升级前套餐的“不限制”语义。
+func subscriptionPlanScope(tx *gorm.DB, billingGroup *string) *gorm.DB {
+	if billingGroup == nil {
+		return tx
+	}
+	plans := DB.Model(&SubscriptionPlan{}).Select("id").Where(
+		"billing_group IS NULL OR billing_group = ? OR billing_group = ?", "", *billingGroup)
+	return tx.Where("plan_id IN (?)", plans)
+}
+
+// GetBillingGroup 返回额度适用分组，独立于购买后的账号分组变更。
+func (p *SubscriptionPlan) GetBillingGroup() string {
+	if p.BillingGroup == nil {
+		return ""
+	}
+	return strings.TrimSpace(*p.BillingGroup)
+}
+
+// findSubscriptionPreConsume 校验幂等记录的归属，不能借旧 requestId 绕过当前套餐范围。
+func findSubscriptionPreConsume(tx *gorm.DB, requestID string, userID int, billingGroup string) (*SubscriptionPreConsumeResult, error) {
+	var record SubscriptionPreConsumeRecord
+	result := tx.Where("request_id = ?", requestID).Limit(1).Find(&record)
+	if result.Error != nil || result.RowsAffected == 0 {
+		return nil, result.Error
+	}
+	if record.UserId != userID {
+		return nil, ErrSubscriptionScopeMismatch
+	}
+	if record.Status == "refunded" {
+		return nil, errors.New("subscription pre-consume already refunded")
+	}
+	var sub UserSubscription
+	if err := tx.Where("id = ?", record.UserSubscriptionId).First(&sub).Error; err != nil {
+		return nil, err
+	}
+	var plan SubscriptionPlan
+	if err := tx.Select("id", "billing_group").Where("id = ?", sub.PlanId).First(&plan).Error; err != nil {
+		return nil, err
+	}
+	if sub.UserId != userID || plan.GetBillingGroup() != "" && plan.GetBillingGroup() != billingGroup {
+		return nil, ErrSubscriptionScopeMismatch
+	}
+	return &SubscriptionPreConsumeResult{
+		UserSubscriptionId: sub.Id,
+		BillingGroup:       plan.GetBillingGroup(),
+		PreConsumed:        record.PreConsumed,
+		AmountTotal:        sub.AmountTotal,
+		AmountUsedBefore:   sub.AmountUsed,
+		AmountUsedAfter:    sub.AmountUsed,
+	}, nil
+}
+
+// PreConsumeUserSubscription 按范围从有效订阅预扣，组内保持先到期先使用。
+func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64, billingGroup string) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
@@ -1310,29 +1368,15 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 	returnValue := &SubscriptionPreConsumeResult{}
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		var existing SubscriptionPreConsumeRecord
-		query := tx.Where("request_id = ?", requestId).Limit(1).Find(&existing)
-		if query.Error != nil {
-			return query.Error
-		}
-		if query.RowsAffected > 0 {
-			if existing.Status == "refunded" {
-				return errors.New("subscription pre-consume already refunded")
-			}
-			var sub UserSubscription
-			if err := tx.Where("id = ?", existing.UserSubscriptionId).First(&sub).Error; err != nil {
-				return err
-			}
-			returnValue.UserSubscriptionId = sub.Id
-			returnValue.PreConsumed = existing.PreConsumed
-			returnValue.AmountTotal = sub.AmountTotal
-			returnValue.AmountUsedBefore = sub.AmountUsed
-			returnValue.AmountUsedAfter = sub.AmountUsed
-			return nil
+		// 1. 已完成的预扣直接复用；不再次计费。
+		existing, err := findSubscriptionPreConsume(tx, requestId, userId, billingGroup)
+		if err != nil || existing != nil {
+			returnValue = existing
+			return err
 		}
 
 		var subs []UserSubscription
-		if err := lockForUpdate(tx).
+		if err := subscriptionPlanScope(lockForUpdate(tx), &billingGroup).
 			Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
 			Order("end_time asc, id asc").
 			Find(&subs).Error; err != nil {
@@ -1341,13 +1385,24 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		if len(subs) == 0 {
 			return errors.New("no active subscription")
 		}
+		// 2. 等待行锁期间，同一请求可能已被另一事务预扣；在锁内重新确认。
+		existing, err = findSubscriptionPreConsume(tx, requestId, userId, billingGroup)
+		if err != nil || existing != nil {
+			returnValue = existing
+			return err
+		}
+		// 3. 仅重置并扣减选定范围内的订阅；额度不足时不借用其他组。
 		for _, candidate := range subs {
 			sub := candidate
-			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
-			if err != nil {
+			// 额度范围使用数据库当前配置，避免套餐缓存延迟造成跨组扣费。
+			var plan SubscriptionPlan
+			if err := tx.Where("id = ?", sub.PlanId).First(&plan).Error; err != nil {
 				return err
 			}
-			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
+			if plan.GetBillingGroup() != "" && plan.GetBillingGroup() != billingGroup {
+				continue
+			}
+			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, &plan, now); err != nil {
 				return err
 			}
 			usedBefore := sub.AmountUsed
@@ -1365,18 +1420,6 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				Status:             "consumed",
 			}
 			if err := tx.Create(record).Error; err != nil {
-				var dup SubscriptionPreConsumeRecord
-				if err2 := tx.Where("request_id = ?", requestId).First(&dup).Error; err2 == nil {
-					if dup.Status == "refunded" {
-						return errors.New("subscription pre-consume already refunded")
-					}
-					returnValue.UserSubscriptionId = sub.Id
-					returnValue.PreConsumed = dup.PreConsumed
-					returnValue.AmountTotal = sub.AmountTotal
-					returnValue.AmountUsedBefore = sub.AmountUsed
-					returnValue.AmountUsedAfter = sub.AmountUsed
-					return nil
-				}
 				return err
 			}
 			sub.AmountUsed += amount
@@ -1384,6 +1427,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				return err
 			}
 			returnValue.UserSubscriptionId = sub.Id
+			returnValue.BillingGroup = plan.GetBillingGroup()
 			returnValue.PreConsumed = amount
 			returnValue.AmountTotal = sub.AmountTotal
 			returnValue.AmountUsedBefore = usedBefore
@@ -1393,6 +1437,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		return fmt.Errorf("subscription quota insufficient, need=%d", amount)
 	})
 	if err != nil {
+		if existing, replayErr := findSubscriptionPreConsume(DB, requestId, userId, billingGroup); replayErr == nil && existing != nil {
+			return existing, nil
+		}
 		return nil, err
 	}
 	return returnValue, nil
@@ -1416,7 +1463,7 @@ func RefundSubscriptionPreConsume(requestId string) error {
 			record.Status = "refunded"
 			return tx.Save(&record).Error
 		}
-		if err := PostConsumeUserSubscriptionDelta(record.UserSubscriptionId, -record.PreConsumed); err != nil {
+		if err := postConsumeUserSubscriptionDeltaTx(tx, record.UserSubscriptionId, -record.PreConsumed); err != nil {
 			return err
 		}
 		record.Status = "refunded"
@@ -1515,17 +1562,22 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 		return nil
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
-		var sub UserSubscription
-		if err := lockForUpdate(tx).
-			Where("id = ?", userSubscriptionId).
-			First(&sub).Error; err != nil {
-			return err
-		}
-		newUsed := max(sub.AmountUsed+delta, 0)
-		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
-			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
-		}
-		sub.AmountUsed = newUsed
-		return tx.Save(&sub).Error
+		return postConsumeUserSubscriptionDeltaTx(tx, userSubscriptionId, delta)
 	})
+}
+
+// postConsumeUserSubscriptionDeltaTx 让退款记录和额度调整在同一事务内提交，避免嵌套事务锁冲突。
+func postConsumeUserSubscriptionDeltaTx(tx *gorm.DB, userSubscriptionId int, delta int64) error {
+	var sub UserSubscription
+	if err := lockForUpdate(tx).
+		Where("id = ?", userSubscriptionId).
+		First(&sub).Error; err != nil {
+		return err
+	}
+	newUsed := max(sub.AmountUsed+delta, 0)
+	if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
+		return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
+	}
+	sub.AmountUsed = newUsed
+	return tx.Save(&sub).Error
 }

@@ -185,6 +185,14 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
 	}
+	if req.Plan.BillingGroup != nil {
+		group := strings.TrimSpace(*req.Plan.BillingGroup)
+		if _, exists := ratio_setting.GetGroupRatioCopy()[group]; group != "" && (!exists || group == "auto") {
+			common.ApiErrorMsg(c, "额度适用分组不存在或不是具体分组")
+			return
+		}
+		req.Plan.BillingGroup = &group
+	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
@@ -259,6 +267,14 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
 	}
+	if req.Plan.BillingGroup != nil {
+		group := strings.TrimSpace(*req.Plan.BillingGroup)
+		if _, exists := ratio_setting.GetGroupRatioCopy()[group]; group != "" && (!exists || group == "auto") {
+			common.ApiErrorMsg(c, "额度适用分组不存在或不是具体分组")
+			return
+		}
+		req.Plan.BillingGroup = &group
+	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
@@ -301,6 +317,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
 			"updated_at":                 common.GetTimestamp(),
+		}
+		// 兼容旧客户端：省略新字段保留现有规则，显式空字符串才解除限制。
+		if req.Plan.BillingGroup != nil {
+			updateMap["billing_group"] = *req.Plan.BillingGroup
 		}
 		if req.Plan.AllowBalancePay != nil {
 			updateMap["allow_balance_pay"] = *req.Plan.AllowBalancePay
