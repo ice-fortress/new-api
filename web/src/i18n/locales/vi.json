@@ -3658,6 +3658,7 @@
     "Only Mine": "Chỉ của tôi",
     "Only one catch-all route is allowed for the same incoming path": "Mỗi đường dẫn đầu vào chỉ được có một tuyến dự phòng",
     "Only one OpenAI Models route is allowed": "Chỉ được phép có một tuyến Mô hình OpenAI",
+    "Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.": "Chỉ yêu cầu trong nhóm đã chọn được dùng hạn mức này. Không giới hạn cho phép mọi nhóm. Thay đổi áp dụng cho các yêu cầu tiếp theo của mọi gói đăng ký, không thay đổi nhóm người dùng.",
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "Chỉ các trường được chọn sẽ bị ghi đè. Bạn có thể chạy lại trình hướng dẫn đồng bộ hóa nếu có xung đột mới xuất hiện.",
     "Only show syncable models": "Chỉ hiện mô hình có thể đồng bộ",
     "Only successful requests": "Chỉ các yêu cầu thành công",
@@ -4230,6 +4231,8 @@
     "Quota adjustment details": "Chi tiết điều chỉnh hạn mức",
     "Quota after adjustment": "Hạn mức sau điều chỉnh",
     "Quota before adjustment": "Hạn mức trước điều chỉnh",
+    "Quota billing group": "Nhóm sử dụng hạn mức",
+    "Quota billing groups": "Nhóm được dùng hạn mức",
     "Quota clamped": "Hạn ngạch bị giới hạn",
     "Quota consumed before charging users": "Hạn mức tiêu thụ trước khi tính phí người dùng",
     "Quota Distribution": "Phân bổ hạn ngạch",
@@ -4800,6 +4803,7 @@
     "Select end time": "Chọn thời gian kết thúc",
     "Select from presets or type custom identifier.": "Chọn từ các cài đặt sẵn hoặc nhập mã định danh tùy chỉnh.",
     "Select granularity": "Select detail level",
+    "Select groups (empty means unrestricted)": "Chọn nhóm (để trống để không giới hạn)",
     "Select groups (leave empty to keep current)": "Chọn nhóm (để trống để giữ nguyên hiện tại)",
     "Select interface density": "Chọn mật độ giao diện",
     "Select items...": "Chọn các mục...",
@@ -4853,6 +4857,7 @@
     "Selected {{count}}": "Đã chọn {{count}}",
     "selected channel(s). Leave empty to remove tag.": "Kênh đã chọn. Để trống để xóa thẻ.",
     "Selected conflicts were overwritten successfully.": "Các xung đột được chọn đã được ghi đè thành công.",
+    "Selected groups share this quota. Leave empty to allow any group. Use an API key for each group; requests cannot switch groups after quota reservation. Changes apply to future requests of all subscriptions.": "Các nhóm đã chọn dùng chung hạn mức này. Để trống để cho phép mọi nhóm. Sử dụng khóa API tương ứng cho từng nhóm; yêu cầu không thể đổi nhóm sau khi tạm trừ hạn mức. Thay đổi áp dụng cho các yêu cầu sau này của tất cả gói đăng ký.",
     "Selected nodes": "Nút đã chọn",
     "Selected when creating a token and used as the default billing group for API calls.": "Được chọn khi tạo token và dùng làm nhóm tính phí mặc định cho các lệnh gọi API.",
     "Selecting a plugin fills its declared models and default base URL.": "Chọn plugin sẽ điền các model đã khai báo và Base URL mặc định.",
@@ -5706,6 +5711,7 @@
     "Unknown version": "Phiên bản không xác định",
     "Unlimited": "Không giới hạn",
     "Unlimited Quota": "Hạn mức không giới hạn",
+    "Unrestricted": "Không giới hạn",
     "Unsaved changes": "Thay đổi chưa được lưu",
     "Unset price": "Chưa đặt giá",
     "Unset price models": "Mô hình chưa thiết lập giá",
@@ -6213,9 +6219,6 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom",
-    "Quota billing group": "Nhóm sử dụng hạn mức",
-    "Unrestricted": "Không giới hạn",
-    "Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.": "Chỉ yêu cầu trong nhóm đã chọn được dùng hạn mức này. Không giới hạn cho phép mọi nhóm. Thay đổi áp dụng cho các yêu cầu tiếp theo của mọi gói đăng ký, không thay đổi nhóm người dùng."
+    "Zoom": "Zoom"
   }
 }

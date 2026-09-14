@@ -3658,6 +3658,7 @@
     "Only Mine": "Uniquement les miens",
     "Only one catch-all route is allowed for the same incoming path": "Un seul routage de secours est autorisé pour le même chemin d'entrée",
     "Only one OpenAI Models route is allowed": "Une seule route Modèles OpenAI est autorisée",
+    "Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.": "Seules les requêtes du groupe choisi peuvent utiliser ce quota. Sans restriction, tous les groupes sont autorisés. Les modifications s’appliquent aux futures requêtes de tous les abonnements, sans modifier les groupes des utilisateurs.",
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "Seuls les champs sélectionnés seront écrasés. Vous pouvez relancer l'assistant de synchronisation si de nouveaux conflits apparaissent.",
     "Only show syncable models": "Afficher les modèles synchronisables",
     "Only successful requests": "Uniquement les requêtes réussies",
@@ -4230,6 +4231,8 @@
     "Quota adjustment details": "Détails de la modification du quota",
     "Quota after adjustment": "Quota après modification",
     "Quota before adjustment": "Quota avant modification",
+    "Quota billing group": "Groupe de facturation du quota",
+    "Quota billing groups": "Groupes éligibles au quota",
     "Quota clamped": "Quota plafonné",
     "Quota consumed before charging users": "Quota consommé avant de facturer les utilisateurs",
     "Quota Distribution": "Distribution des quotas",
@@ -4800,6 +4803,7 @@
     "Select end time": "Sélectionner l'heure de fin",
     "Select from presets or type custom identifier.": "Sélectionner parmi les préréglages ou saisir un identifiant personnalisé.",
     "Select granularity": "Sélectionner la granularité",
+    "Select groups (empty means unrestricted)": "Choisir des groupes (vide : sans restriction)",
     "Select groups (leave empty to keep current)": "Sélectionner les groupes (laisser vide pour conserver les groupes actuels)",
     "Select interface density": "Sélectionner la densité de l'interface",
     "Select items...": "Sélectionner des éléments...",
@@ -4853,6 +4857,7 @@
     "Selected {{count}}": "{{count}} sélectionné(s)",
     "selected channel(s). Leave empty to remove tag.": "canal(aux) sélectionné(s). Laisser vide pour supprimer l'étiquette.",
     "Selected conflicts were overwritten successfully.": "Les conflits sélectionnés ont été écrasés avec succès.",
+    "Selected groups share this quota. Leave empty to allow any group. Use an API key for each group; requests cannot switch groups after quota reservation. Changes apply to future requests of all subscriptions.": "Les groupes sélectionnés partagent ce quota. Laissez vide pour autoriser tous les groupes. Utilisez une clé API par groupe ; une requête ne peut plus changer de groupe après réservation du quota. Les modifications s’appliquent aux futures requêtes de tous les abonnements.",
     "Selected nodes": "Nœuds sélectionnés",
     "Selected when creating a token and used as the default billing group for API calls.": "Sélectionné lors de la création d’un jeton et utilisé comme groupe de facturation par défaut pour les appels API.",
     "Selecting a plugin fills its declared models and default base URL.": "La sélection remplit les modèles déclarés et l'URL de base par défaut.",
@@ -5706,6 +5711,7 @@
     "Unknown version": "Version inconnue",
     "Unlimited": "Illimité",
     "Unlimited Quota": "Quota illimité",
+    "Unrestricted": "Sans restriction",
     "Unsaved changes": "Modifications non enregistrées",
     "Unset price": "Prix non défini",
     "Unset price models": "Modèles sans prix",
@@ -6213,9 +6219,6 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom",
-    "Quota billing group": "Groupe de facturation du quota",
-    "Unrestricted": "Sans restriction",
-    "Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.": "Seules les requêtes du groupe choisi peuvent utiliser ce quota. Sans restriction, tous les groupes sont autorisés. Les modifications s’appliquent aux futures requêtes de tous les abonnements, sans modifier les groupes des utilisateurs."
+    "Zoom": "Zoom"
   }
 }

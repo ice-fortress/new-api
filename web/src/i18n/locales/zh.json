@@ -3658,6 +3658,7 @@
     "Only Mine": "仅自己",
     "Only one catch-all route is allowed for the same incoming path": "同一入口路径只允许一个兜底路由",
     "Only one OpenAI Models route is allowed": "仅允许配置一条 OpenAI 模型路由",
+    "Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.": "仅抵扣所选分组的请求；不限制时可抵扣任意分组。修改对该套餐所有订阅的后续请求生效，不改变用户分组。",
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "仅选定的字段将被覆盖。如果出现新的冲突，您可以重新运行同步向导。",
     "Only show syncable models": "仅看可同步",
     "Only successful requests": "仅成功的请求",
@@ -4230,6 +4231,8 @@
     "Quota adjustment details": "额度调整详情",
     "Quota after adjustment": "调整后额度",
     "Quota before adjustment": "调整前额度",
+    "Quota billing group": "额度适用分组",
+    "Quota billing groups": "额度适用分组",
     "Quota clamped": "额度已钳制",
     "Quota consumed before charging users": "向用户收费前消耗的配额",
     "Quota Distribution": "消耗分布",
@@ -4800,6 +4803,7 @@
     "Select end time": "选择结束时间",
     "Select from presets or type custom identifier.": "从预设中选择或输入自定义标识符。",
     "Select granularity": "选择粒度",
+    "Select groups (empty means unrestricted)": "选择分组（留空表示不限制）",
     "Select groups (leave empty to keep current)": "选择分组（留空以保持当前设置）",
     "Select interface density": "选择界面密度",
     "Select items...": "选择项目...",
@@ -4853,6 +4857,7 @@
     "Selected {{count}}": "已选 {{count}} 个",
     "selected channel(s). Leave empty to remove tag.": "选定的渠道。留空以移除标签。",
     "Selected conflicts were overwritten successfully.": "选中的冲突已成功覆盖。",
+    "Selected groups share this quota. Leave empty to allow any group. Use an API key for each group; requests cannot switch groups after quota reservation. Changes apply to future requests of all subscriptions.": "所选分组共用此额度，留空则适用于所有分组。请使用各分组对应的 API key；请求预扣后不能切换分组。修改对所有订阅的后续请求生效。",
     "Selected nodes": "已选节点",
     "Selected when creating a token and used as the default billing group for API calls.": "创建令牌时选择，用作 API 调用的默认计费分组。",
     "Selecting a plugin fills its declared models and default base URL.": "选择插件后将自动填入其声明的模型和默认 Base URL。",
@@ -5706,6 +5711,7 @@
     "Unknown version": "未知版本",
     "Unlimited": "无限制",
     "Unlimited Quota": "无限配额",
+    "Unrestricted": "不限制",
     "Unsaved changes": "未保存的更改",
     "Unset price": "未设置价格",
     "Unset price models": "未设置价格模型",
@@ -6213,9 +6219,6 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放",
-    "Quota billing group": "额度适用分组",
-    "Unrestricted": "不限制",
-    "Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.": "仅抵扣所选分组的请求；不限制时可抵扣任意分组。修改对该套餐所有订阅的后续请求生效，不改变用户分组。"
+    "Zoom": "缩放"
   }
 }

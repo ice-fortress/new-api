@@ -1,8 +1,10 @@
 package model
 
 import (
+	"database/sql/driver"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -173,8 +175,10 @@ type SubscriptionPlan struct {
 	// Max purchases per user (0 = unlimited)
 	MaxPurchasePerUser int `json:"max_purchase_per_user" gorm:"type:int;default:0"`
 
-	// BillingGroup 限定套餐额度的适用分组；nil/空值不限制，修改后作用于所有订阅的后续请求。
+	// BillingGroup 保留旧版单分组配置；BillingGroups 非 nil 时以列表为准。
 	BillingGroup *string `json:"billing_group,omitempty" gorm:"type:varchar(64)"`
+	// BillingGroups 中的分组共用套餐额度；空列表不限制，不改变用户或令牌的分组权限。
+	BillingGroups SubscriptionBillingGroups `json:"billing_groups" gorm:"type:text"`
 
 	// Upgrade user group after purchase (empty = no change)
 	UpgradeGroup string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
@@ -871,8 +875,12 @@ func HasActiveUserSubscription(userId int, billingGroup *string) (bool, error) {
 		return false, errors.New("invalid userId")
 	}
 	now := common.GetTimestamp()
+	scope, err := subscriptionPlanScope(DB, userId, billingGroup)
+	if err != nil {
+		return false, err
+	}
 	var count int64
-	if err := subscriptionPlanScope(DB.Model(&UserSubscription{}), billingGroup).
+	if err := scope.Model(&UserSubscription{}).
 		Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
 		Count(&count).Error; err != nil {
 		return false, err
@@ -888,8 +896,12 @@ func UserActiveSubscriptionsAllowWalletOverflow(userId int, billingGroup *string
 		return false, errors.New("invalid userId")
 	}
 	now := common.GetTimestamp()
+	scope, err := subscriptionPlanScope(DB, userId, billingGroup)
+	if err != nil {
+		return false, err
+	}
 	var strictCount int64
-	if err := subscriptionPlanScope(DB.Model(&UserSubscription{}), billingGroup).
+	if err := scope.Model(&UserSubscription{}).
 		Where("user_id = ? AND status = ? AND end_time > ? AND allow_wallet_overflow = ?",
 			userId, "active", now, false).
 		Count(&strictCount).Error; err != nil {
@@ -1249,6 +1261,8 @@ type SubscriptionPreConsumeRecord struct {
 	Status             string `json:"status" gorm:"type:varchar(32);index"` // consumed/refunded
 	CreatedAt          int64  `json:"created_at" gorm:"bigint"`
 	UpdatedAt          int64  `json:"updated_at" gorm:"bigint;index"`
+	// BillingGroup 固定受限套餐请求的实际分组；空字符串不限制，nil 表示升级前的记录。
+	BillingGroup *string `json:"billing_group,omitempty" gorm:"type:varchar(64)"`
 }
 
 func (r *SubscriptionPreConsumeRecord) BeforeCreate(tx *gorm.DB) error {
@@ -1299,23 +1313,70 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 	return tx.Save(sub).Error
 }
 
-// subscriptionPlanScope 按套餐当前设置筛选，nil 用于检查用户是否完全没有订阅。
-// 不读取 UpgradeGroup 快照；NULL/空字符串兼容升级前套餐的“不限制”语义。
-func subscriptionPlanScope(tx *gorm.DB, billingGroup *string) *gorm.DB {
-	if billingGroup == nil {
-		return tx
+// SubscriptionBillingGroups 以 TEXT JSON 数组存储分组，统一兼容三种数据库。
+type SubscriptionBillingGroups []string
+
+func (groups SubscriptionBillingGroups) Value() (driver.Value, error) {
+	if groups == nil {
+		return nil, nil
 	}
-	plans := DB.Model(&SubscriptionPlan{}).Select("id").Where(
-		"billing_group IS NULL OR billing_group = ? OR billing_group = ?", "", *billingGroup)
-	return tx.Where("plan_id IN (?)", plans)
+	data, err := common.Marshal([]string(groups))
+	return string(data), err
 }
 
-// GetBillingGroup 返回额度适用分组，独立于购买后的账号分组变更。
-func (p *SubscriptionPlan) GetBillingGroup() string {
-	if p.BillingGroup == nil {
-		return ""
+func (groups *SubscriptionBillingGroups) Scan(value any) error {
+	var data []byte
+	switch value := value.(type) {
+	case nil:
+		*groups = nil
+		return nil
+	case string:
+		data = []byte(value)
+	case []byte:
+		data = value
+	default:
+		return fmt.Errorf("invalid subscription billing groups type: %T", value)
 	}
-	return strings.TrimSpace(*p.BillingGroup)
+	return common.Unmarshal(data, groups)
+}
+
+// subscriptionPlanScope 只读取用户有效订阅对应的套餐，并按当前配置精确匹配分组。
+// 在 Go 中判断成员关系，避免数据库 JSON 查询差异；nil 用于查询全部有效订阅。
+func subscriptionPlanScope(tx *gorm.DB, userId int, billingGroup *string) (*gorm.DB, error) {
+	if billingGroup == nil {
+		return tx, nil
+	}
+	activePlans := tx.Model(&UserSubscription{}).Select("plan_id").Where(
+		"user_id = ? AND status = ? AND end_time > ?", userId, "active", common.GetTimestamp())
+	var plans []SubscriptionPlan
+	if err := tx.Select("id", "billing_group", "billing_groups").Where("id IN (?)", activePlans).Find(&plans).Error; err != nil {
+		return nil, err
+	}
+	planIDs := make([]int, 0, len(plans))
+	for _, plan := range plans {
+		if plan.AllowsBillingGroup(*billingGroup) {
+			planIDs = append(planIDs, plan.Id)
+		}
+	}
+	return tx.Where("plan_id IN ?", planIDs), nil
+}
+
+// GetBillingGroups 兼容已部署的单分组套餐；显式空列表优先于旧字段，表示解除限制。
+func (p *SubscriptionPlan) GetBillingGroups() []string {
+	if p.BillingGroups != nil {
+		return p.BillingGroups
+	}
+	if p.BillingGroup != nil {
+		if group := strings.TrimSpace(*p.BillingGroup); group != "" {
+			return []string{group}
+		}
+	}
+	return nil
+}
+
+func (p *SubscriptionPlan) AllowsBillingGroup(group string) bool {
+	groups := p.GetBillingGroups()
+	return len(groups) == 0 || slices.Contains(groups, group)
 }
 
 // findSubscriptionPreConsume 校验幂等记录的归属，不能借旧 requestId 绕过当前套餐范围。
@@ -1336,15 +1397,31 @@ func findSubscriptionPreConsume(tx *gorm.DB, requestID string, userID int, billi
 		return nil, err
 	}
 	var plan SubscriptionPlan
-	if err := tx.Select("id", "billing_group").Where("id = ?", sub.PlanId).First(&plan).Error; err != nil {
+	if err := tx.Select("id", "billing_group", "billing_groups").Where("id = ?", sub.PlanId).First(&plan).Error; err != nil {
 		return nil, err
 	}
-	if sub.UserId != userID || plan.GetBillingGroup() != "" && plan.GetBillingGroup() != billingGroup {
+	if sub.UserId != userID || !plan.AllowsBillingGroup(billingGroup) {
+		return nil, ErrSubscriptionScopeMismatch
+	}
+	boundGroup := ""
+	if record.BillingGroup != nil {
+		boundGroup = *record.BillingGroup
+	} else {
+		// 旧记录没有实际分组快照；多分组时无法确认原分组，拒绝复用以免跨组。
+		groups := plan.GetBillingGroups()
+		if len(groups) > 1 {
+			return nil, ErrSubscriptionScopeMismatch
+		}
+		if len(groups) == 1 {
+			boundGroup = groups[0]
+		}
+	}
+	if boundGroup != "" && boundGroup != billingGroup {
 		return nil, ErrSubscriptionScopeMismatch
 	}
 	return &SubscriptionPreConsumeResult{
 		UserSubscriptionId: sub.Id,
-		BillingGroup:       plan.GetBillingGroup(),
+		BillingGroup:       boundGroup,
 		PreConsumed:        record.PreConsumed,
 		AmountTotal:        sub.AmountTotal,
 		AmountUsedBefore:   sub.AmountUsed,
@@ -1375,8 +1452,12 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			return err
 		}
 
+		scope, err := subscriptionPlanScope(tx, userId, &billingGroup)
+		if err != nil {
+			return err
+		}
 		var subs []UserSubscription
-		if err := subscriptionPlanScope(lockForUpdate(tx), &billingGroup).
+		if err := lockForUpdate(scope).
 			Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
 			Order("end_time asc, id asc").
 			Find(&subs).Error; err != nil {
@@ -1399,7 +1480,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			if err := tx.Where("id = ?", sub.PlanId).First(&plan).Error; err != nil {
 				return err
 			}
-			if plan.GetBillingGroup() != "" && plan.GetBillingGroup() != billingGroup {
+			if !plan.AllowsBillingGroup(billingGroup) {
 				continue
 			}
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, &plan, now); err != nil {
@@ -1412,12 +1493,17 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 					continue
 				}
 			}
+			boundGroup := ""
+			if len(plan.GetBillingGroups()) > 0 {
+				boundGroup = billingGroup
+			}
 			record := &SubscriptionPreConsumeRecord{
 				RequestId:          requestId,
 				UserId:             userId,
 				UserSubscriptionId: sub.Id,
 				PreConsumed:        amount,
 				Status:             "consumed",
+				BillingGroup:       &boundGroup,
 			}
 			if err := tx.Create(record).Error; err != nil {
 				return err
@@ -1427,7 +1513,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				return err
 			}
 			returnValue.UserSubscriptionId = sub.Id
-			returnValue.BillingGroup = plan.GetBillingGroup()
+			returnValue.BillingGroup = boundGroup
 			returnValue.PreConsumed = amount
 			returnValue.AmountTotal = sub.AmountTotal
 			returnValue.AmountUsedBefore = usedBefore

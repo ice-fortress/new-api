@@ -3658,6 +3658,7 @@
     "Only Mine": "Only Mine",
     "Only one catch-all route is allowed for the same incoming path": "Only one catch-all route is allowed for the same incoming path",
     "Only one OpenAI Models route is allowed": "Only one OpenAI Models route is allowed",
+    "Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.": "Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.",
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.",
     "Only show syncable models": "Only show syncable models",
     "Only successful requests": "Only successful requests",
@@ -4230,6 +4231,8 @@
     "Quota adjustment details": "Quota adjustment details",
     "Quota after adjustment": "Quota after adjustment",
     "Quota before adjustment": "Quota before adjustment",
+    "Quota billing group": "Quota billing group",
+    "Quota billing groups": "Quota billing groups",
     "Quota clamped": "Quota clamped",
     "Quota consumed before charging users": "Quota consumed before charging users",
     "Quota Distribution": "Quota Distribution",
@@ -4800,6 +4803,7 @@
     "Select end time": "Select end time",
     "Select from presets or type custom identifier.": "Select from presets or type custom identifier.",
     "Select granularity": "Select granularity",
+    "Select groups (empty means unrestricted)": "Select groups (empty means unrestricted)",
     "Select groups (leave empty to keep current)": "Select groups (leave empty to keep current)",
     "Select interface density": "Select interface density",
     "Select items...": "Select items...",
@@ -4853,6 +4857,7 @@
     "Selected {{count}}": "Selected {{count}}",
     "selected channel(s). Leave empty to remove tag.": "selected channel(s). Leave empty to remove tag.",
     "Selected conflicts were overwritten successfully.": "Selected conflicts were overwritten successfully.",
+    "Selected groups share this quota. Leave empty to allow any group. Use an API key for each group; requests cannot switch groups after quota reservation. Changes apply to future requests of all subscriptions.": "Selected groups share this quota. Leave empty to allow any group. Use an API key for each group; requests cannot switch groups after quota reservation. Changes apply to future requests of all subscriptions.",
     "Selected nodes": "Selected nodes",
     "Selected when creating a token and used as the default billing group for API calls.": "Selected when creating a token and used as the default billing group for API calls.",
     "Selecting a plugin fills its declared models and default base URL.": "Selecting a plugin fills its declared models and default base URL.",
@@ -5706,6 +5711,7 @@
     "Unknown version": "Unknown version",
     "Unlimited": "Unlimited",
     "Unlimited Quota": "Unlimited Quota",
+    "Unrestricted": "Unrestricted",
     "Unsaved changes": "Unsaved changes",
     "Unset price": "Unset price",
     "Unset price models": "Unset price models",
@@ -6213,9 +6219,6 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom",
-    "Quota billing group": "Quota billing group",
-    "Unrestricted": "Unrestricted",
-    "Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.": "Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups."
+    "Zoom": "Zoom"
   }
 }

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 
@@ -36,7 +36,7 @@ beforeEach(() => {
   vi.spyOn(api, 'put').mockResolvedValue({ data: { success: true } })
 })
 
-it('lets an administrator select a concrete quota group and saves it independently of upgrade group', async () => {
+it('selects multiple quota groups and saves them independently of upgrade group', async () => {
   const user = userEvent.setup()
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -60,20 +60,86 @@ it('lets an administrator select a concrete quota group and saves it independent
       </SubscriptionsProvider>
     </QueryClientProvider>
   )
-  const input = screen.getByRole('combobox', { name: 'Quota billing group' })
-  expect(input).toHaveValue('Unrestricted')
+  const input = screen.getByLabelText('Quota billing groups')
+  expect(input).toHaveValue('')
   await user.click(input)
-  await user.click(await screen.findByRole('option', { name: 'GPT-3' }))
-  expect(input).toHaveValue('GPT-3')
+  await user.type(input, 'GPT-3')
+  await screen.findByRole('option', { name: 'GPT-3' })
+  await user.keyboard('{ArrowDown}{Enter}')
+  await user.click(input)
+  await user.click(await screen.findByRole('option', { name: 'default' }))
+  expect(screen.queryByRole('option', { name: 'auto' })).not.toBeInTheDocument()
+  expect(screen.getByRole('option', { name: 'GPT-3' })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
+  expect(screen.getByRole('option', { name: 'default' })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
+  await user.keyboard('{Escape}')
   await user.click(screen.getByRole('button', { name: 'Save changes' }))
   await waitFor(() =>
     expect(api.put).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
         plan: expect.objectContaining({
-          billing_group: 'GPT-3',
+          billing_groups: ['GPT-3', 'default'],
           upgrade_group: 'default',
         }),
+      })
+    )
+  )
+  client.clear()
+})
+
+it('loads saved groups and lets the administrator clear the restriction', async () => {
+  const user = userEvent.setup()
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  render(
+    <QueryClientProvider client={client}>
+      <SubscriptionsProvider>
+        <SubscriptionsMutateDrawer
+          open
+          onOpenChange={() => {}}
+          currentRow={{
+            plan: {
+              ...PLAN_FORM_DEFAULTS,
+              id: 3,
+              title: 'Shared plan',
+              currency: 'USD',
+              billing_groups: ['GPT-3', 'default'],
+            },
+          }}
+        />
+      </SubscriptionsProvider>
+    </QueryClientProvider>
+  )
+  const input = screen.getByLabelText('Quota billing groups')
+  await user.click(input)
+  const listbox = await screen.findByRole('listbox')
+  expect(
+    within(listbox).getByRole('option', { name: 'GPT-3' })
+  ).toHaveAttribute('aria-selected', 'true')
+  expect(
+    within(listbox).getByRole('option', { name: 'default' })
+  ).toHaveAttribute('aria-selected', 'true')
+  // 从已选择项中逐个取消，空数组明确表示解除限制。
+  await user.click(within(listbox).getByRole('option', { name: 'GPT-3' }))
+  await user.click(within(listbox).getByRole('option', { name: 'default' }))
+  await user.keyboard('{Escape}')
+  expect(input).toHaveAttribute(
+    'placeholder',
+    'Select groups (empty means unrestricted)'
+  )
+  await user.click(screen.getByRole('button', { name: 'Save changes' }))
+  await waitFor(() =>
+    expect(api.put).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        plan: expect.objectContaining({ billing_groups: [] }),
       })
     )
   )

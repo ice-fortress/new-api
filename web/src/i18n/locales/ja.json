@@ -3658,6 +3658,7 @@
     "Only Mine": "自分のみ",
     "Only one catch-all route is allowed for the same incoming path": "同じ入力パスではキャッチオールルートは1つだけ許可されます",
     "Only one OpenAI Models route is allowed": "OpenAI モデルルートは 1 つだけ設定できます",
+    "Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.": "選択したグループのリクエストのみ、このクォータを使用できます。制限なしの場合は全グループで使用できます。変更は全契約の今後のリクエストに適用され、ユーザーのグループは変更されません。",
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "選択されたフィールドのみが上書きされます。新しい競合が発生した場合は、同期ウィザードを再実行できます。",
     "Only show syncable models": "同期可能なモデルのみ表示",
     "Only successful requests": "成功したリクエストのみ",
@@ -4230,6 +4231,8 @@
     "Quota adjustment details": "クォータ調整の詳細",
     "Quota after adjustment": "調整後のクォータ",
     "Quota before adjustment": "調整前のクォータ",
+    "Quota billing group": "クォータの適用グループ",
+    "Quota billing groups": "クォータの対象グループ",
     "Quota clamped": "クォータ制限適用",
     "Quota consumed before charging users": "ユーザーに請求する前に消費されるクォータ",
     "Quota Distribution": "クォータの分配",
@@ -4800,6 +4803,7 @@
     "Select end time": "終了時間を選択",
     "Select from presets or type custom identifier.": "プリセットから選択するか、カスタム識別子を入力してください。",
     "Select granularity": "粒度を選択",
+    "Select groups (empty means unrestricted)": "グループを選択（空欄は制限なし）",
     "Select groups (leave empty to keep current)": "グループを選択 (現在の設定を維持するには空のままにしてください)",
     "Select interface density": "インターフェイスの密度を選択",
     "Select items...": "項目を選択...",
@@ -4853,6 +4857,7 @@
     "Selected {{count}}": "{{count}} 件選択済み",
     "selected channel(s). Leave empty to remove tag.": "選択されたチャネル。タグを削除するには空のままにしてください。",
     "Selected conflicts were overwritten successfully.": "選択した競合が正常に上書きされました。",
+    "Selected groups share this quota. Leave empty to allow any group. Use an API key for each group; requests cannot switch groups after quota reservation. Changes apply to future requests of all subscriptions.": "選択したグループでこのクォータを共有します。空欄の場合はすべてのグループが対象です。各グループに対応する API キーを使用してください。クォータの仮引き落とし後は、そのリクエストのグループを変更できません。変更はすべてのサブスクリプションの今後のリクエストに適用されます。",
     "Selected nodes": "選択したノード",
     "Selected when creating a token and used as the default billing group for API calls.": "トークン作成時に選択され、API 呼び出しのデフォルト課金グループとして使われます。",
     "Selecting a plugin fills its declared models and default base URL.": "プラグインを選択すると宣言済みモデルと既定の Base URL が入力されます。",
@@ -5706,6 +5711,7 @@
     "Unknown version": "不明なバージョン",
     "Unlimited": "無制限",
     "Unlimited Quota": "無制限のクォータ",
+    "Unrestricted": "制限なし",
     "Unsaved changes": "未保存の変更",
     "Unset price": "価格未設定",
     "Unset price models": "価格が未設定のモデル",
@@ -6213,9 +6219,6 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム",
-    "Quota billing group": "クォータの適用グループ",
-    "Unrestricted": "制限なし",
-    "Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.": "選択したグループのリクエストのみ、このクォータを使用できます。制限なしの場合は全グループで使用できます。変更は全契約の今後のリクエストに適用され、ユーザーのグループは変更されません。"
+    "Zoom": "ズーム"
   }
 }

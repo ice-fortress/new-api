@@ -3658,6 +3658,7 @@
     "Only Mine": "Только мои",
     "Only one catch-all route is allowed for the same incoming path": "Для одного входного пути разрешен только один резервный маршрут",
     "Only one OpenAI Models route is allowed": "Допускается только один маршрут моделей OpenAI",
+    "Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.": "Квота используется только запросами выбранной группы. Без ограничений доступны все группы. Изменения применяются к будущим запросам всех подписок и не меняют группы пользователей.",
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "Будут перезаписаны только выбранные поля. Вы можете повторно запустить мастер синхронизации, если появятся новые конфликты.",
     "Only show syncable models": "Только доступные для синхронизации",
     "Only successful requests": "Только успешные запросы",
@@ -4230,6 +4231,8 @@
     "Quota adjustment details": "Подробности изменения квоты",
     "Quota after adjustment": "Квота после изменения",
     "Quota before adjustment": "Квота до изменения",
+    "Quota billing group": "Группа списания квоты",
+    "Quota billing groups": "Группы для расходования квоты",
     "Quota clamped": "Квота ограничена",
     "Quota consumed before charging users": "Квота, потребляемая до взимания платы с пользователей",
     "Quota Distribution": "Распределение квоты",
@@ -4800,6 +4803,7 @@
     "Select end time": "Выбрать время окончания",
     "Select from presets or type custom identifier.": "Выберите из предустановок или введите пользовательский идентификатор.",
     "Select granularity": "Выбрать детализацию",
+    "Select groups (empty means unrestricted)": "Выберите группы (пусто — без ограничений)",
     "Select groups (leave empty to keep current)": "Выбрать группы (оставьте пустым, чтобы сохранить текущие)",
     "Select interface density": "Выберите плотность интерфейса",
     "Select items...": "Выберите элементы...",
@@ -4853,6 +4857,7 @@
     "Selected {{count}}": "Выбрано: {{count}}",
     "selected channel(s). Leave empty to remove tag.": "выбранный канал(ы). Оставьте пустым, чтобы удалить тег.",
     "Selected conflicts were overwritten successfully.": "Выбранные конфликты успешно перезаписаны.",
+    "Selected groups share this quota. Leave empty to allow any group. Use an API key for each group; requests cannot switch groups after quota reservation. Changes apply to future requests of all subscriptions.": "Выбранные группы используют общую квоту. Оставьте поле пустым, чтобы разрешить все группы. Используйте отдельный API-ключ для каждой группы; после резервирования квоты запрос не может сменить группу. Изменения применяются к будущим запросам всех подписок.",
     "Selected nodes": "Выбранные узлы",
     "Selected when creating a token and used as the default billing group for API calls.": "Выбирается при создании токена и используется как группа тарификации по умолчанию для вызовов API.",
     "Selecting a plugin fills its declared models and default base URL.": "Выбор плагина заполняет заявленные модели и базовый URL по умолчанию.",
@@ -5706,6 +5711,7 @@
     "Unknown version": "Неизвестная версия",
     "Unlimited": "Без ограничений",
     "Unlimited Quota": "Неограниченная квота",
+    "Unrestricted": "Без ограничений",
     "Unsaved changes": "Несохранённые изменения",
     "Unset price": "Цена не задана",
     "Unset price models": "Модели с неустановленной ценой",
@@ -6213,9 +6219,6 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom",
-    "Quota billing group": "Группа списания квоты",
-    "Unrestricted": "Без ограничений",
-    "Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.": "Квота используется только запросами выбранной группы. Без ограничений доступны все группы. Изменения применяются к будущим запросам всех подписок и не меняют группы пользователей."
+    "Zoom": "Zoom"
   }
 }

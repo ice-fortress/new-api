@@ -31,6 +31,7 @@ import {
   sideDrawerHeaderClassName,
   sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
+import { MultiSelect } from '@/components/multi-select'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import {
@@ -399,34 +400,27 @@ export function SubscriptionsMutateDrawer({
 
               <FormField
                 control={form.control}
-                name='billing_group'
+                name='billing_groups'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Quota billing group')}</FormLabel>
+                    <FormLabel>{t('Quota billing groups')}</FormLabel>
                     <FormControl>
-                      <Combobox
-                        options={[
-                          { value: '__none__', label: t('Unrestricted') },
-                          ...groupOptions
-                            .filter((group) => group !== 'auto')
-                            .map((group) => ({ value: group, label: group })),
-                        ]}
-                        value={field.value || '__none__'}
-                        onValueChange={(value) =>
-                          field.onChange(
-                            value === '__none__' ? '' : (value ?? '')
-                          )
-                        }
-                        onBlur={field.onBlur}
-                        name={field.name}
-                        ref={field.ref}
+                      <MultiSelect
+                        options={groupOptions
+                          .filter((group) => group !== 'auto')
+                          .map((group) => ({ value: group, label: group }))}
+                        selected={field.value}
+                        onChange={field.onChange}
+                        maxVisibleChips={4}
+                        placeholder={t(
+                          'Select groups (empty means unrestricted)'
+                        )}
                         className='w-full'
-                        placeholder={t('Unrestricted')}
                       />
                     </FormControl>
                     <FormDescription>
                       {t(
-                        'Only requests in the selected group can use this quota. Unrestricted allows any group. Changes apply to future requests of all subscriptions without changing user groups.'
+                        'Selected groups share this quota. Leave empty to allow any group. Use an API key for each group; requests cannot switch groups after quota reservation. Changes apply to future requests of all subscriptions.'
                       )}
                     </FormDescription>
                     <FormMessage />

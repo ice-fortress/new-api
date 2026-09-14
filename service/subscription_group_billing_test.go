@@ -50,11 +50,14 @@ func subscriptionGroupUsed(t *testing.T, id int) int64 {
 
 func TestSubscriptionGroupBillingSettlementKeepsSelectedSubscriptionAfterPlanEdit(t *testing.T) {
 	ctx, info := setupSubscriptionGroupBilling(t)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", 71002).
+		Update("billing_groups", model.SubscriptionBillingGroups{"GPT-3", "GPT-4"}).Error)
 	session, apiErr := NewBillingSession(ctx, info, 100)
 	require.Nil(t, apiErr)
 	info.Billing = session
 	assert.Equal(t, 71002, info.SubscriptionId)
-	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", 71002).Update("billing_group", "default").Error)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", 71002).
+		Update("billing_groups", model.SubscriptionBillingGroups{"default"}).Error)
 	require.NoError(t, session.Reserve(150))
 	require.NoError(t, session.Settle(125))
 	require.NoError(t, session.Settle(125))
@@ -70,6 +73,9 @@ func TestSubscriptionGroupBillingSettlementKeepsSelectedSubscriptionAfterPlanEdi
 
 func TestSubscriptionGroupBillingCrossGroupRetryIsRejectedAndRefundsOriginal(t *testing.T) {
 	ctx, info := setupSubscriptionGroupBilling(t)
+	// 即使另一个分组也属于套餐范围，单次请求仍禁止跨组重试。
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", 71002).
+		Update("billing_groups", model.SubscriptionBillingGroups{"GPT-3", "default"}).Error)
 	session, apiErr := NewBillingSession(ctx, info, 100)
 	require.Nil(t, apiErr)
 	info.Billing = session
@@ -96,6 +102,9 @@ func TestSubscriptionGroupBillingWalletFallbackUsesOnlyEligiblePlans(t *testing.
 		}
 		t.Run(name, func(t *testing.T) {
 			ctx, info := setupSubscriptionGroupBilling(t)
+			require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", 71002).
+				Update("billing_groups", model.SubscriptionBillingGroups{"GPT-3", "GPT-4"}).Error)
+			info.UsingGroup = "GPT-4"
 			info.UserSetting.BillingPreference = "subscription_first"
 			require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("id = ?", 71002).Updates(map[string]any{"amount_used": 990, "allow_wallet_overflow": allowOverflow}).Error)
 			session, apiErr := NewBillingSession(ctx, info, 20)

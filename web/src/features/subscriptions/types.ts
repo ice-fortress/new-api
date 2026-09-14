@@ -40,6 +40,7 @@ export const subscriptionPlanSchema = z.object({
   max_purchase_per_user: z.number(),
   total_amount: z.number(),
   billing_group: z.string().optional(),
+  billing_groups: z.array(z.string()).nullish(),
   upgrade_group: z.string().optional(),
   downgrade_group: z.string().optional(),
   stripe_price_id: z.string().optional(),

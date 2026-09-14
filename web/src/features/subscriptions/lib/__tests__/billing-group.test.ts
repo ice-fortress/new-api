@@ -28,26 +28,33 @@ import {
   PLAN_FORM_DEFAULTS,
 } from '../plan-form'
 
-describe('subscription billing group', () => {
-  it('preserves a configured billing group when editing a plan', () => {
+describe('subscription billing groups', () => {
+  it.each([
+    { billing_groups: ['GPT-3', 'GPT-4'], want: ['GPT-3', 'GPT-4'] },
+    { billing_groups: null, billing_group: 'GPT-3', want: ['GPT-3'] },
+    { billing_groups: undefined, billing_group: 'GPT-3', want: ['GPT-3'] },
+    { billing_groups: [], billing_group: 'GPT-3', want: [] },
+  ])('preserves the effective groups when editing a plan: %j', (testCase) => {
     const plan = subscriptionPlanSchema.parse({
       ...PLAN_FORM_DEFAULTS,
       id: 3,
-      billing_group: 'GPT-3',
+      ...testCase,
     })
     const form = planToFormValues(plan)
-    expect(formValuesToPlanPayload(form).plan.billing_group).toBe('GPT-3')
+    const payload = formValuesToPlanPayload(form)
+    expect(payload.plan.billing_groups).toEqual(testCase.want)
+    expect(payload.plan).not.toHaveProperty('billing_group')
   })
-  it('sends an explicit empty billing group for an unrestricted plan', () => {
-    expect(formValuesToPlanPayload(PLAN_FORM_DEFAULTS).plan.billing_group).toBe(
-      ''
-    )
+  it('sends an explicit empty group list for an unrestricted plan', () => {
+    expect(
+      formValuesToPlanPayload(PLAN_FORM_DEFAULTS).plan.billing_groups
+    ).toEqual([])
   })
 })
 
 it('displays the billing group label and unrestricted option in Chinese', async () => {
   const instance = i18next.createInstance()
   await instance.init({ lng: 'zh', resources: { zh } })
-  expect(instance.t('Quota billing group')).toBe('额度适用分组')
+  expect(instance.t('Quota billing groups')).toBe('额度适用分组')
   expect(instance.t('Unrestricted')).toBe('不限制')
 })

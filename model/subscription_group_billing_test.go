@@ -190,6 +190,8 @@ func TestSubscriptionBillingGroupConcurrentReservations(t *testing.T) {
 		t.Run(fmt.Sprintf("same_request_%t", sameRequest), func(t *testing.T) {
 			billingGroupDatabase(t)
 			seedBillingGroupSubscriptions(t)
+			require.NoError(t, DB.Model(&SubscriptionPlan{}).Where("id = ?", 2).
+				Update("billing_groups", SubscriptionBillingGroups{"GPT-3", "GPT-4"}).Error)
 			require.NoError(t, DB.Model(&UserSubscription{}).Where("id = ?", 102).Update("amount_total", 100).Error)
 			start := make(chan struct{})
 			results := make(chan error, 2)
@@ -198,10 +200,12 @@ func TestSubscriptionBillingGroupConcurrentReservations(t *testing.T) {
 				wg.Go(func() {
 					<-start
 					id := fmt.Sprintf("concurrent-%d", i)
+					group := []string{"GPT-3", "GPT-4"}[i]
 					if sameRequest {
 						id = "same-request"
+						group = "GPT-3"
 					}
-					_, err := PreConsumeUserSubscription(id, 71, "model", 0, 60, "GPT-3")
+					_, err := PreConsumeUserSubscription(id, 71, "model", 0, 60, group)
 					results <- err
 				})
 			}
@@ -227,7 +231,61 @@ func TestSubscriptionBillingGroupConcurrentReservations(t *testing.T) {
 	}
 }
 
-// releasedSubscriptionPlan 是生产 rc.36 / ea7cb0b 的套餐结构，用于真实增量迁移验证。
+func TestSubscriptionBillingGroupMultipleGroupsShareQuotaAndBindEachRequest(t *testing.T) {
+	billingGroupDatabase(t)
+	seedBillingGroupSubscriptions(t)
+	groups := SubscriptionBillingGroups{"GPT-3", "GPT-4", `group,"quoted"_%`}
+	require.NoError(t, DB.Model(&SubscriptionPlan{}).Where("id = ?", 2).Update("billing_groups", groups).Error)
+	var plan SubscriptionPlan
+	require.NoError(t, DB.First(&plan, 2).Error)
+	assert.Equal(t, []string(groups), plan.GetBillingGroups())
+
+	// 不同分组请求共享同一订阅，预扣及幂等复用始终绑定各自实际分组。
+	first, err := PreConsumeUserSubscription("group-a", 71, "model", 0, 600, "GPT-3")
+	require.NoError(t, err)
+	second, err := PreConsumeUserSubscription("group-b", 71, "model", 0, 300, "GPT-4")
+	require.NoError(t, err)
+	assert.Equal(t, first.UserSubscriptionId, second.UserSubscriptionId)
+	assert.Equal(t, "GPT-4", second.BillingGroup)
+	_, err = PreConsumeUserSubscription("group-b", 71, "model", 0, 300, "GPT-4")
+	require.NoError(t, err)
+	_, err = PreConsumeUserSubscription("group-a", 71, "model", 0, 600, "GPT-4")
+	require.ErrorIs(t, err, ErrSubscriptionScopeMismatch)
+	_, err = PreConsumeUserSubscription("over-limit", 71, "model", 0, 200, "GPT-4")
+	require.ErrorContains(t, err, "subscription quota insufficient")
+	assert.Equal(t, int64(900), billingGroupUsed(t, 102))
+	assert.Zero(t, billingGroupUsed(t, 101))
+
+	// 特殊字符与相似名称按完整字符串匹配，各数据库行为一致。
+	for _, tc := range []struct {
+		group string
+		match bool
+	}{{"GPT-4", true}, {`group,"quoted"_%`, true}, {"GPT", false}, {"gpt-4", false}, {"quoted", false}, {"auto", false}} {
+		matched, err := HasActiveUserSubscription(71, &tc.group)
+		require.NoError(t, err)
+		assert.Equal(t, tc.match, matched, tc.group)
+	}
+	_, err = PreConsumeUserSubscription("unmatched", 71, "model", 0, 10, "GPT")
+	require.Error(t, err)
+	require.NoError(t, RefundSubscriptionPreConsume("group-a"))
+	require.NoError(t, RefundSubscriptionPreConsume("group-a"))
+	assert.Equal(t, int64(300), billingGroupUsed(t, 102))
+
+	// 删除一个适用分组只影响后续请求，清空列表解除旧单分组限制。
+	require.NoError(t, DB.Model(&SubscriptionPlan{}).Where("id = ?", 2).
+		Update("billing_groups", SubscriptionBillingGroups{"GPT-3"}).Error)
+	_, err = PreConsumeUserSubscription("removed-group", 71, "model", 0, 20, "GPT-4")
+	require.Error(t, err)
+	require.NoError(t, PostConsumeUserSubscriptionDelta(second.UserSubscriptionId, 20))
+	assert.Equal(t, int64(320), billingGroupUsed(t, 102))
+	require.NoError(t, DB.Model(&SubscriptionPlan{}).Where("id = ?", 2).
+		Update("billing_groups", SubscriptionBillingGroups{}).Error)
+	unrestricted, err := PreConsumeUserSubscription("unrestricted", 71, "model", 0, 10, "another-group")
+	require.NoError(t, err)
+	assert.Empty(t, unrestricted.BillingGroup)
+}
+
+// releasedSubscriptionPlan 是 rc.36 / rc.37 的套餐结构，已核对 v1.0.0-rc.37，用于真实增量迁移验证。
 type releasedSubscriptionPlan struct {
 	Id int `json:"id"`
 
@@ -276,48 +334,93 @@ type releasedSubscriptionPlan struct {
 
 func (releasedSubscriptionPlan) TableName() string { return "subscription_plans" }
 
+// releasedSubscriptionPreConsumeRecord 保留升级前的幂等表字段与索引。
+type releasedSubscriptionPreConsumeRecord struct {
+	Id                 int    `json:"id"`
+	RequestId          string `json:"request_id" gorm:"type:varchar(64);uniqueIndex"`
+	UserId             int    `json:"user_id" gorm:"index"`
+	UserSubscriptionId int    `json:"user_subscription_id" gorm:"index"`
+	PreConsumed        int64  `json:"pre_consumed" gorm:"type:bigint;not null;default:0"`
+	Status             string `json:"status" gorm:"type:varchar(32);index"`
+	CreatedAt          int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt          int64  `json:"updated_at" gorm:"bigint;index"`
+}
+
+func (releasedSubscriptionPreConsumeRecord) TableName() string {
+	return "subscription_pre_consume_records"
+}
+
 func TestSubscriptionBillingGroupMigrationPreservesReleasedData(t *testing.T) {
-	db := billingGroupDatabase(t)
-	require.NoError(t, db.Migrator().DropTable(&SubscriptionPlan{}))
-	require.NoError(t, db.AutoMigrate(&releasedSubscriptionPlan{}))
-	require.NoError(t, db.Create(&releasedSubscriptionPlan{Id: 3, Title: "existing-plan", TotalAmount: 150000000, UpgradeGroup: "GPT-3"}).Error)
-	require.NoError(t, db.Create(&UserSubscription{Id: 14, UserId: 2, PlanId: 3, AmountTotal: 150000000, AmountUsed: 1234, Status: "active", EndTime: time.Now().Add(time.Hour).Unix()}).Error)
-	assert.False(t, db.Migrator().HasColumn(&SubscriptionPlan{}, "billing_group"))
-	recorder := &migrationSQLRecorder{}
-	db = db.Session(&gorm.Session{Logger: recorder})
-	DB = db
-	for i := range 2 {
-		recorder.reset()
-		if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
-			require.NoError(t, ensureSubscriptionPlanTableSQLite())
-		} else {
-			require.NoError(t, db.AutoMigrate(&SubscriptionPlan{}))
-		}
-		if i == 1 {
-			assert.Empty(t, recorder.schemaMutations(), "重复迁移不得改写表结构")
-		}
+	for _, legacyGroup := range []string{"", "GPT-3"} {
+		t.Run("legacy-group-"+legacyGroup, func(t *testing.T) {
+			db := billingGroupDatabase(t)
+			require.NoError(t, db.Migrator().DropTable(&SubscriptionPlan{}))
+			require.NoError(t, db.AutoMigrate(&releasedSubscriptionPlan{}))
+			require.NoError(t, db.Create(&releasedSubscriptionPlan{Id: 3, Title: "existing-plan", TotalAmount: 150000000, UpgradeGroup: "GPT-3"}).Error)
+			require.NoError(t, db.Create(&UserSubscription{Id: 14, UserId: 2, PlanId: 3, AmountTotal: 150000000, AmountUsed: 1234, Status: "active", EndTime: time.Now().Add(time.Hour).Unix()}).Error)
+			assert.False(t, db.Migrator().HasColumn(&SubscriptionPlan{}, "billing_groups"))
+			if legacyGroup != "" {
+				// 模拟本分支已经部署的单分组表结构和实际配置。
+				require.NoError(t, db.Migrator().AddColumn(&SubscriptionPlan{}, "BillingGroup"))
+				require.NoError(t, db.Model(&SubscriptionPlan{}).Where("id = ?", 3).Update("billing_group", legacyGroup).Error)
+			}
+			require.NoError(t, db.Migrator().DropTable(&SubscriptionPreConsumeRecord{}))
+			require.NoError(t, db.AutoMigrate(&releasedSubscriptionPreConsumeRecord{}))
+			require.NoError(t, db.Create(&releasedSubscriptionPreConsumeRecord{Id: 9, RequestId: "legacy-request", UserId: 2, UserSubscriptionId: 14, PreConsumed: 34, Status: "consumed"}).Error)
+			recorder := &migrationSQLRecorder{}
+			db = db.Session(&gorm.Session{Logger: recorder})
+			DB = db
+			for i := range 2 {
+				recorder.reset()
+				if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
+					require.NoError(t, ensureSubscriptionPlanTableSQLite())
+				} else {
+					require.NoError(t, db.AutoMigrate(&SubscriptionPlan{}))
+				}
+				require.NoError(t, db.AutoMigrate(&SubscriptionPreConsumeRecord{}))
+				if i == 1 {
+					assert.Empty(t, recorder.schemaMutations(), "重复迁移不得改写表结构")
+				}
+			}
+			var plan SubscriptionPlan
+			require.NoError(t, db.First(&plan, 3).Error)
+			assert.Equal(t, "existing-plan", plan.Title)
+			assert.Equal(t, "GPT-3", plan.UpgradeGroup)
+			assert.Equal(t, int64(150000000), plan.TotalAmount)
+			assert.Equal(t, legacyGroup, strings.Join(plan.GetBillingGroups(), ","))
+			assert.Nil(t, plan.BillingGroups)
+			var record SubscriptionPreConsumeRecord
+			require.NoError(t, db.First(&record, 9).Error)
+			assert.Equal(t, int64(34), record.PreConsumed)
+			assert.Nil(t, record.BillingGroup)
+			// 迁移保留幂等唯一约束，历史预扣仍能退款且只退一次。
+			require.Error(t, db.Create(&SubscriptionPreConsumeRecord{RequestId: "legacy-request"}).Error)
+			require.NoError(t, RefundSubscriptionPreConsume("legacy-request"))
+			require.NoError(t, RefundSubscriptionPreConsume("legacy-request"))
+			assert.Equal(t, int64(1200), billingGroupUsed(t, 14))
+			var sub UserSubscription
+			require.NoError(t, db.First(&sub, 14).Error)
+			assert.Empty(t, sub.UpgradeGroup)
+			// 原主键唯一性和已有账户引用继续有效。
+			err := db.Create(&SubscriptionPlan{Id: 3, Title: "duplicate"}).Error
+			require.Error(t, err)
+			var columns []gorm.ColumnType
+			columns, err = db.Migrator().ColumnTypes(&SubscriptionPlan{})
+			require.NoError(t, err)
+			n := 0
+			for _, column := range columns {
+				if strings.EqualFold(column.Name(), "billing_groups") {
+					n++
+				}
+			}
+			assert.Equal(t, 1, n)
+			require.NoError(t, db.Model(&SubscriptionPlan{}).Where("id = ?", 3).
+				Update("billing_groups", SubscriptionBillingGroups{"GPT-3", "GPT-4"}).Error)
+			got, err := PreConsumeUserSubscription("after-upgrade", 2, "model", 0, 20, "GPT-4")
+			require.NoError(t, err)
+			assert.Equal(t, 14, got.UserSubscriptionId)
+			assert.Equal(t, "GPT-4", got.BillingGroup)
+			assert.Equal(t, int64(1220), billingGroupUsed(t, 14))
+		})
 	}
-	var plan SubscriptionPlan
-	require.NoError(t, db.First(&plan, 3).Error)
-	assert.Equal(t, "existing-plan", plan.Title)
-	assert.Equal(t, "GPT-3", plan.UpgradeGroup)
-	assert.Equal(t, int64(150000000), plan.TotalAmount)
-	assert.Nil(t, plan.BillingGroup)
-	assert.Equal(t, int64(1234), billingGroupUsed(t, 14))
-	var sub UserSubscription
-	require.NoError(t, db.First(&sub, 14).Error)
-	assert.Empty(t, sub.UpgradeGroup)
-	// 原主键唯一性和已有账户引用继续有效。
-	err := db.Create(&SubscriptionPlan{Id: 3, Title: "duplicate"}).Error
-	require.Error(t, err)
-	var columns []gorm.ColumnType
-	columns, err = db.Migrator().ColumnTypes(&SubscriptionPlan{})
-	require.NoError(t, err)
-	n := 0
-	for _, column := range columns {
-		if strings.EqualFold(column.Name(), "billing_group") {
-			n++
-		}
-	}
-	assert.Equal(t, 1, n)
 }

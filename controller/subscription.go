@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -25,6 +26,28 @@ type BillingPreferenceRequest struct {
 
 type SubscriptionBalancePayRequest struct {
 	PlanId int `json:"plan_id"`
+}
+
+// normalizeSubscriptionBillingGroups 校验并去重额度范围，兼容旧客户端的单分组输入。
+// 未提供字段时保留原配置；显式空数组或旧字段空字符串表示解除限制。
+func normalizeSubscriptionBillingGroups(plan *model.SubscriptionPlan) error {
+	if plan.BillingGroups == nil && plan.BillingGroup == nil {
+		return nil
+	}
+	available := ratio_setting.GetGroupRatioCopy()
+	groups := make(model.SubscriptionBillingGroups, 0, len(plan.GetBillingGroups()))
+	for _, value := range plan.GetBillingGroups() {
+		group := strings.TrimSpace(value)
+		if _, exists := available[group]; !exists || group == "" || group == "auto" {
+			return fmt.Errorf("额度适用分组不存在或不是具体分组: %s", group)
+		}
+		if !slices.Contains(groups, group) {
+			groups = append(groups, group)
+		}
+	}
+	plan.BillingGroups = groups
+	plan.BillingGroup = nil
+	return nil
 }
 
 // ---- User APIs ----
@@ -185,13 +208,9 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
 	}
-	if req.Plan.BillingGroup != nil {
-		group := strings.TrimSpace(*req.Plan.BillingGroup)
-		if _, exists := ratio_setting.GetGroupRatioCopy()[group]; group != "" && (!exists || group == "auto") {
-			common.ApiErrorMsg(c, "额度适用分组不存在或不是具体分组")
-			return
-		}
-		req.Plan.BillingGroup = &group
+	if err := normalizeSubscriptionBillingGroups(&req.Plan); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
 	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
@@ -267,13 +286,9 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
 	}
-	if req.Plan.BillingGroup != nil {
-		group := strings.TrimSpace(*req.Plan.BillingGroup)
-		if _, exists := ratio_setting.GetGroupRatioCopy()[group]; group != "" && (!exists || group == "auto") {
-			common.ApiErrorMsg(c, "额度适用分组不存在或不是具体分组")
-			return
-		}
-		req.Plan.BillingGroup = &group
+	if err := normalizeSubscriptionBillingGroups(&req.Plan); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
 	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
@@ -318,9 +333,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
 			"updated_at":                 common.GetTimestamp(),
 		}
-		// 兼容旧客户端：省略新字段保留现有规则，显式空字符串才解除限制。
-		if req.Plan.BillingGroup != nil {
-			updateMap["billing_group"] = *req.Plan.BillingGroup
+		// 清除旧字段，避免解除列表限制后重新启用历史单分组配置。
+		if req.Plan.BillingGroups != nil {
+			updateMap["billing_groups"] = req.Plan.BillingGroups
+			updateMap["billing_group"] = nil
 		}
 		if req.Plan.AllowBalancePay != nil {
 			updateMap["allow_balance_pay"] = *req.Plan.AllowBalancePay
