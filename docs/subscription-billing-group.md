@@ -88,6 +88,22 @@ bun run build
 
 新前后端需一同升级。旧单分组版本不读取 `billing_groups`，回退前须将多分组配置转换为旧版本能够表达的单分组限制，不能直接依赖旧版本解释新配置。
 
+## 同步上游 main（2026-09-14）
+
+功能提交 `5cf832a3a` 后，合并上游 `7fd063819`，共纳入 23 个提交。唯一内容冲突位于 `BillingSession.Reserve`：保留订阅固定分组校验，并接入上游图片请求追加预扣逻辑。跨组拒绝和退款测试同时覆盖普通请求与图片请求。
+
+合并后的验证记录：
+
+- `GOFLAGS=-p=2 make test`：根 Go 模块及 relaykit 全量测试通过。
+- `cd relaykit && GOWORK=off go build ./...`、根目录 `GOWORK=off go build -o /tmp/newapi-main-sync-check .`：独立模块及主程序构建通过。
+- `bun run typecheck`、`bun run build`：通过；`bun install --frozen-lockfile` 确认上游依赖已安装，`bun run i18n:sync` 后无额外差异。
+- `bun run test` 覆盖 134 个文件、1487 个用例。首次高并发运行出现超时及可见性断言失败；失败文件以 `--maxWorkers=2` 复测，剩余设置引导用例以 `--maxWorkers=1` 单独运行后通过。纯上游对照用例也通过，没有为此修改上游 UI 或测试断言。
+- SQLite 3.50.4、MySQL 8.4.11、PostgreSQL 15.18：订阅多分组及升级迁移定向测试通过，命令沿用上文 `NEWAPI_BILLING_TEST_DB` / `NEWAPI_BILLING_TEST_DSN` 的两种外部数据库配置。
+- 设置临时数据库的 `TEST_MYSQL_DSN` / `TEST_POSTGRES_DSN` 后，`GOWORK=off go test ./model -run 'TestMigrationSchemaStability|TestMigratePrefillGroupUniqueness' -count=1 -v` 通过，覆盖上游迁移适配器、旧唯一约束和预填分组索引迁移。
+- 对独立日志库 `newapi_group_billing_log_test`，临时 Go overlay 仅将迁移套件的 `chooseDB(..., false)` 改为 `chooseDB(..., true)`；`GOWORK=off go test -overlay=/tmp/newapi-main-sync-log-overlay.json ./model -run TestMigrationSchemaStability -count=1 -v` 在三种数据库上通过。overlay 未写入仓库。
+
+验证仅使用本地临时数据库；未推送分支或执行生产部署。
+
 ## 后续部署与升级
 
 本轮仅完成本地修复，不执行 Fedora 切换。部署前需要备份并验证现有数据库与配置；构建包含本分支提交的自定义镜像，沿用 Fedora 的 `.env`、Compose 项目、PostgreSQL 卷及应用数据挂载，再分别配置各套餐的目标分组。

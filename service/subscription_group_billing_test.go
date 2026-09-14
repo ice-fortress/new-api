@@ -72,26 +72,34 @@ func TestSubscriptionGroupBillingSettlementKeepsSelectedSubscriptionAfterPlanEdi
 }
 
 func TestSubscriptionGroupBillingCrossGroupRetryIsRejectedAndRefundsOriginal(t *testing.T) {
-	ctx, info := setupSubscriptionGroupBilling(t)
-	// 即使另一个分组也属于套餐范围，单次请求仍禁止跨组重试。
-	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", 71002).
-		Update("billing_groups", model.SubscriptionBillingGroups{"GPT-3", "default"}).Error)
-	session, apiErr := NewBillingSession(ctx, info, 100)
-	require.Nil(t, apiErr)
-	info.Billing = session
-	require.NoError(t, session.Reserve(150))
-	assert.Nil(t, ValidateSubscriptionBillingGroup(info))
-	info.UsingGroup = "default"
-	require.NotNil(t, ValidateSubscriptionBillingGroup(info))
-	require.Error(t, session.Reserve(200))
-	require.Error(t, session.Settle(50))
-	session.Refund(ctx)
-	session.Refund(ctx)
-	require.Eventually(t, func() bool {
-		var sub model.UserSubscription
-		return model.DB.First(&sub, 71002).Error == nil && sub.AmountUsed == 0
-	}, time.Second, 5*time.Millisecond)
-	assert.Zero(t, subscriptionGroupUsed(t, 71001))
+	for _, tc := range []struct {
+		name       string
+		imageCount int
+	}{{"text", 0}, {"image", 2}} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, info := setupSubscriptionGroupBilling(t)
+			info.ImageRequestCount = tc.imageCount
+			// 即使另一个分组也属于套餐范围，单次请求仍禁止跨组重试。
+			require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", 71002).
+				Update("billing_groups", model.SubscriptionBillingGroups{"GPT-3", "default"}).Error)
+			session, apiErr := NewBillingSession(ctx, info, 100)
+			require.Nil(t, apiErr)
+			info.Billing = session
+			require.NoError(t, session.Reserve(150))
+			assert.Nil(t, ValidateSubscriptionBillingGroup(info))
+			info.UsingGroup = "default"
+			require.NotNil(t, ValidateSubscriptionBillingGroup(info))
+			require.Error(t, session.Reserve(200))
+			require.Error(t, session.Settle(50))
+			session.Refund(ctx)
+			session.Refund(ctx)
+			require.Eventually(t, func() bool {
+				var sub model.UserSubscription
+				return model.DB.First(&sub, 71002).Error == nil && sub.AmountUsed == 0
+			}, time.Second, 5*time.Millisecond)
+			assert.Zero(t, subscriptionGroupUsed(t, 71001))
+		})
+	}
 }
 
 func TestSubscriptionGroupBillingWalletFallbackUsesOnlyEligiblePlans(t *testing.T) {
