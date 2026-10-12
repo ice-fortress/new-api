@@ -4907,6 +4907,7 @@
     "Quota after adjustment": "Hạn mức sau điều chỉnh",
     "Quota before adjustment": "Hạn mức trước điều chỉnh",
     "Quota billing group": "Nhóm sử dụng hạn mức",
+    "Quota billing group does not exist or is not a concrete group: {{group}}": "Nhóm sử dụng hạn mức không tồn tại hoặc không phải là nhóm cụ thể: {{group}}",
     "Quota billing groups": "Nhóm được dùng hạn mức",
     "Quota clamped": "Hạn ngạch bị giới hạn",
     "Redemption code name length must be between 1-20": "Tên mã đổi thưởng phải dài từ 1 đến 20 ký tự",

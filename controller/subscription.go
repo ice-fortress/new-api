@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -30,16 +29,17 @@ type SubscriptionBalancePayRequest struct {
 
 // normalizeSubscriptionBillingGroups 校验并去重额度范围，兼容旧客户端的单分组输入。
 // 未提供字段时保留原配置；显式空数组或旧字段空字符串表示解除限制。
-func normalizeSubscriptionBillingGroups(plan *model.SubscriptionPlan) error {
+// 第二个返回值表示校验是否通过；不通过时返回不可用的分组名且不改动配置。
+func normalizeSubscriptionBillingGroups(plan *model.SubscriptionPlan) (string, bool) {
 	if plan.BillingGroups == nil && plan.BillingGroup == nil {
-		return nil
+		return "", true
 	}
 	available := ratio_setting.GetGroupRatioCopy()
 	groups := make(model.SubscriptionBillingGroups, 0, len(plan.GetBillingGroups()))
 	for _, value := range plan.GetBillingGroups() {
 		group := strings.TrimSpace(value)
 		if _, exists := available[group]; !exists || group == "" || group == "auto" {
-			return fmt.Errorf("额度适用分组不存在或不是具体分组: %s", group)
+			return group, false
 		}
 		if !slices.Contains(groups, group) {
 			groups = append(groups, group)
@@ -47,7 +47,7 @@ func normalizeSubscriptionBillingGroups(plan *model.SubscriptionPlan) error {
 	}
 	plan.BillingGroups = groups
 	plan.BillingGroup = nil
-	return nil
+	return "", true
 }
 
 // ---- User APIs ----
@@ -208,8 +208,8 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorT(c, "Total quota cannot be negative")
 		return
 	}
-	if err := normalizeSubscriptionBillingGroups(&req.Plan); err != nil {
-		common.ApiErrorMsg(c, err.Error())
+	if invalidGroup, ok := normalizeSubscriptionBillingGroups(&req.Plan); !ok {
+		common.ApiErrorT(c, "Quota billing group does not exist or is not a concrete group: {{group}}", map[string]any{"group": invalidGroup})
 		return
 	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
@@ -286,8 +286,8 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorT(c, "Total quota cannot be negative")
 		return
 	}
-	if err := normalizeSubscriptionBillingGroups(&req.Plan); err != nil {
-		common.ApiErrorMsg(c, err.Error())
+	if invalidGroup, ok := normalizeSubscriptionBillingGroups(&req.Plan); !ok {
+		common.ApiErrorT(c, "Quota billing group does not exist or is not a concrete group: {{group}}", map[string]any{"group": invalidGroup})
 		return
 	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)

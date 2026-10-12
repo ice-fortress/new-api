@@ -4907,6 +4907,7 @@
     "Quota after adjustment": "Quota après modification",
     "Quota before adjustment": "Quota avant modification",
     "Quota billing group": "Groupe de facturation du quota",
+    "Quota billing group does not exist or is not a concrete group: {{group}}": "Le groupe de facturation du quota n'existe pas ou n'est pas un groupe concret : {{group}}",
     "Quota billing groups": "Groupes éligibles au quota",
     "Quota clamped": "Quota plafonné",
     "Redemption code name length must be between 1-20": "Le nom du code d'échange doit contenir entre 1 et 20 caractères",

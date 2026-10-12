@@ -4907,6 +4907,7 @@
     "Quota after adjustment": "調整後のクォータ",
     "Quota before adjustment": "調整前のクォータ",
     "Quota billing group": "クォータの適用グループ",
+    "Quota billing group does not exist or is not a concrete group: {{group}}": "クォータの適用グループが存在しないか、具体的なグループではありません：{{group}}",
     "Quota billing groups": "クォータの対象グループ",
     "Quota clamped": "クォータ制限適用",
     "Redemption code name length must be between 1-20": "引き換えコード名は 1 から 20 文字にしてください",

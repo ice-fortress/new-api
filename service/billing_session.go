@@ -510,7 +510,10 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 // checkSubscriptionGroup 保证追加预扣及结算不会在路由改组后继续扣原套餐。
 func (s *BillingSession) checkSubscriptionGroup() error {
 	if s.subscriptionGroup != "" && s.subscriptionGroup != s.relayInfo.UsingGroup {
-		return fmt.Errorf("订阅已绑定分组 %s，当前请求不能切换到分组 %s", s.subscriptionGroup, s.relayInfo.UsingGroup)
+		return errors.New(i18n.Translate(s.lang, i18n.MsgQuotaSubscriptionGroupMismatch, map[string]any{
+			"Group":      s.subscriptionGroup,
+			"UsingGroup": s.relayInfo.UsingGroup,
+		}))
 	}
 	return nil
 }

@@ -4907,6 +4907,7 @@
     "Quota after adjustment": "Квота после изменения",
     "Quota before adjustment": "Квота до изменения",
     "Quota billing group": "Группа списания квоты",
+    "Quota billing group does not exist or is not a concrete group: {{group}}": "Группа списания квоты не существует или не является конкретной группой: {{group}}",
     "Quota billing groups": "Группы для расходования квоты",
     "Quota clamped": "Квота ограничена",
     "Redemption code name length must be between 1-20": "Длина названия кода активации должна быть от 1 до 20 символов",

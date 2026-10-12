@@ -39,6 +39,7 @@ const (
 	MsgQuotaUserInsufficient             = "quota.user_insufficient"
 	MsgQuotaPreConsumeInsufficient       = "quota.pre_consume_insufficient"
 	MsgQuotaSubscriptionInsufficient     = "quota.subscription_insufficient"
+	MsgQuotaSubscriptionGroupMismatch    = "quota.subscription_group_mismatch"
 	MsgRelayModelPriceNotConfigured      = "relay.model_price_not_configured"
 	MsgRelayModelPriceNotConfiguredAdmin = "relay.model_price_not_configured_admin"
 	MsgRelayTaskChannelDisabled          = "relay.task_channel_disabled"

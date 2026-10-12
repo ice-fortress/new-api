@@ -4907,6 +4907,7 @@
     "Quota after adjustment": "調整後額度",
     "Quota before adjustment": "調整前額度",
     "Quota billing group": "額度適用群組",
+    "Quota billing group does not exist or is not a concrete group: {{group}}": "額度適用分組不存在或不是具體分組：{{group}}",
     "Quota billing groups": "額度適用分組",
     "Quota clamped": "額度已限制",
     "Redemption code name length must be between 1-20": "兌換碼名稱長度必須在1-20之間",

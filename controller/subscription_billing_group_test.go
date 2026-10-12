@@ -43,7 +43,7 @@ func setupSubscriptionBillingGroupAPI(t *testing.T) {
 	})
 }
 
-func callSubscriptionBillingGroupAPI(t *testing.T, id int, fields map[string]any) bool {
+func subscriptionBillingGroupResponse(t *testing.T, id int, fields map[string]any) *httptest.ResponseRecorder {
 	t.Helper()
 	plan := map[string]any{"title": "group-billing-plan", "price_amount": 0, "duration_unit": "month", "duration_value": 1, "enabled": true, "total_amount": 1000}
 	maps.Copy(plan, fields)
@@ -59,10 +59,15 @@ func callSubscriptionBillingGroupAPI(t *testing.T, id int, fields map[string]any
 		ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(id)}}
 		AdminUpdateSubscriptionPlan(ctx)
 	}
+	return rec
+}
+
+func callSubscriptionBillingGroupAPI(t *testing.T, id int, fields map[string]any) bool {
+	t.Helper()
 	var response struct {
 		Success bool `json:"success"`
 	}
-	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+	require.NoError(t, common.Unmarshal(subscriptionBillingGroupResponse(t, id, fields).Body.Bytes(), &response))
 	return response.Success
 }
 
@@ -153,4 +158,19 @@ func TestSubscriptionBillingGroupAPIUpdatesMultipleGroups(t *testing.T) {
 			assert.Equal(t, tc.want, response.Groups)
 		})
 	}
+}
+
+// 前端按 message_key 与 message_params 翻译校验失败提示，失败响应必须带上这两个字段。
+func TestSubscriptionBillingGroupAPIReportsInvalidGroupAsTranslatableMessage(t *testing.T) {
+	setupSubscriptionBillingGroupAPI(t)
+	rec := subscriptionBillingGroupResponse(t, 0, map[string]any{"billing_groups": []string{"GPT-3", "missing"}})
+	var response struct {
+		Success bool           `json:"success"`
+		Key     string         `json:"message_key"`
+		Params  map[string]any `json:"message_params"`
+	}
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+	assert.False(t, response.Success)
+	assert.Equal(t, "Quota billing group does not exist or is not a concrete group: {{group}}", response.Key)
+	assert.Equal(t, "missing", response.Params["group"])
 }
