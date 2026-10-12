@@ -1,6 +1,7 @@
 package service
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -36,6 +37,8 @@ func setupSubscriptionGroupBilling(t *testing.T) (*gin.Context, *relaycommon.Rel
 		}
 	})
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	// NewBillingSession 通过 i18n.StatedLang 读取 Accept-Language，测试上下文需带请求。
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 	info := &relaycommon.RelayInfo{RequestId: t.Name(), UserId: user.Id, UserGroup: "default", UsingGroup: "GPT-3", OriginModelName: "test-model", IsPlayground: true}
 	info.UserSetting.BillingPreference = "subscription_only"
 	return ctx, info
