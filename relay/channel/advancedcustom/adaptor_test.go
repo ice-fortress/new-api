@@ -2,8 +2,10 @@ package advancedcustom
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -19,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -52,6 +55,61 @@ func TestAdaptorUsesExactRouteAndQueryAuth(t *testing.T) {
 	assert.Equal(t, "/v1/chat/completions", parsedURL.Path)
 	assert.Equal(t, "1", parsedURL.Query().Get("existing"))
 	assert.Equal(t, "sk-test", parsedURL.Query().Get("api_key"))
+}
+
+// An absolute route sends the request to a host other than the channel base
+// URL, and a channel proxy is dialed before the upstream; a failed handshake
+// must hide both.
+func TestAdaptorMasksDialedHostsInDialFailure(t *testing.T) {
+	// 固定代理拨号失败结果，避免本机 DNS 或代理接管 .invalid 域名后改变错误内容。
+	previousDialer := websocket.DefaultDialer
+	dialer := *previousDialer
+	dialer.Proxy = nil
+	dialer.NetDialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, _, _ := net.SplitHostPort(address)
+		if host == "localhost" {
+			return (&net.Dialer{}).DialContext(ctx, network, address)
+		}
+		return nil, &net.OpError{Op: "dial", Net: network, Err: &net.DNSError{Err: "test lookup failure", Name: host}}
+	}
+	websocket.DefaultDialer = &dialer
+	t.Cleanup(func() { websocket.DefaultDialer = previousDialer })
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer upstream.Close()
+	upstreamURL, err := url.Parse(upstream.URL)
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name   string
+		proxy  string
+		hidden string
+	}{
+		{name: "absolute route host", hidden: "localhost"},
+		{name: "channel proxy host", proxy: "http://egress.private.invalid:8080", hidden: "egress.private.invalid"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+				Routes: []dto.AdvancedCustomRoute{{IncomingPath: "/v1/realtime", UpstreamPath: "http://localhost:" + upstreamURL.Port() + "/v1/realtime", Converter: relayconvert.ConverterNone}},
+			})
+			info.RelayMode = relayconstant.RelayModeRealtime
+			info.RequestURLPath = "/v1/realtime"
+			info.ChannelSetting.Proxy = tc.proxy
+			c := advancedCustomGinContext("/v1/realtime")
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, info.ChannelBaseUrl)
+			common.SetContextKey(c, constant.ContextKeyChannelSetting, info.ChannelSetting)
+
+			_, err := (&Adaptor{}).DoRequest(c, info, nil)
+
+			var apiErr *types.NewAPIError
+			require.ErrorAs(t, err, &apiErr)
+			require.Contains(t, apiErr.Error(), tc.hidden)
+			message := apiErr.ToOpenAIError(common.UpstreamAddresses(c)...).Message
+			assert.Contains(t, message, "dial failed to ws://***:"+upstreamURL.Port()+"/***/***")
+			assert.NotContains(t, message, tc.hidden)
+		})
+	}
 }
 
 func TestAdaptorJoinsUpstreamPathWithChannelBaseURL(t *testing.T) {
