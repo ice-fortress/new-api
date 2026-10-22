@@ -160,20 +160,28 @@ func (s *BillingSession) GetPreConsumedQuota() int {
 }
 
 func (s *BillingSession) Reserve(targetQuota int) error {
+	return s.reserve(targetQuota, false)
+}
+
+// ReserveBeforeSubmit 在发起上游请求前补扣，钱包余额必须覆盖差额。
+func (s *BillingSession) ReserveBeforeSubmit(targetQuota int) error {
+	return s.reserve(targetQuota, true)
+}
+
+func (s *BillingSession) reserve(targetQuota int, requireAvailableQuota bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// 先校验本次订阅请求的固定分组，再执行图片等请求的追加预扣。
+	// 重试补预扣和图片追加预扣都必须先校验本次请求固定的套餐分组。
 	if err := s.checkSubscriptionGroup(); err != nil {
 		return err
 	}
 
-	imageRequest := false
 	if s.relayInfo != nil {
-		_, imageRequest = s.relayInfo.Request.(*dto.ImageRequest)
-		imageRequest = imageRequest || s.relayInfo.ImageRequestCount > 0
+		_, imageRequest := s.relayInfo.Request.(*dto.ImageRequest)
+		requireAvailableQuota = requireAvailableQuota || imageRequest || s.relayInfo.ImageRequestCount > 0
 	}
-	if s.settled || s.refunded || s.trusted && !imageRequest || targetQuota <= s.preConsumedQuota {
+	if s.settled || s.refunded || s.trusted && !requireAvailableQuota || targetQuota <= s.preConsumedQuota {
 		return nil
 	}
 
@@ -182,7 +190,7 @@ func (s *BillingSession) Reserve(targetQuota int) error {
 		return nil
 	}
 
-	if err := s.reserveFunding(delta, imageRequest); err != nil {
+	if err := s.reserveFunding(delta, requireAvailableQuota); err != nil {
 		return err
 	}
 	if err := s.reserveToken(delta); err != nil {
@@ -193,7 +201,7 @@ func (s *BillingSession) Reserve(targetQuota int) error {
 	s.preConsumedQuota += delta
 	s.tokenConsumed += delta
 	s.extraReserved += delta
-	if imageRequest {
+	if requireAvailableQuota {
 		s.trusted = false
 	}
 	s.syncRelayInfo()
@@ -273,8 +281,8 @@ func (s *BillingSession) reserveFunding(delta int, requireAvailableQuota bool) e
 	switch funding := s.funding.(type) {
 	case *WalletFunding:
 		if requireAvailableQuota {
-			// Image quantity is known before submission, including retries and
-			// overrides. Reserve atomically instead of admitting wallet debt.
+			// Image quantities and task retry prices are known before
+			// submission. Reserve atomically instead of admitting wallet debt.
 			if err := funding.PreConsume(delta); err != nil {
 				if errors.Is(err, ErrInsufficientWalletQuota) {
 					return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())

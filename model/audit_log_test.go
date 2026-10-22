@@ -95,17 +95,20 @@ func TestAuditLogSortIndexDatabaseMatrix(t *testing.T) {
 					}
 					index, ok := byName["idx_audit_time_event"]
 					require.True(t, ok, "migration must create the audit ordering index")
-					columns := index.Columns()
+					var columns []string
 					if dialect == "postgres" {
-						// 驱动的 GetIndexes 未按索引列顺序排序，直接读取真实的索引键顺序。
-						columns = nil
+						// GORM's PostgreSQL GetIndexes does not preserve index key order.
 						require.NoError(t, db.Raw(`
-SELECT a.attname
-FROM pg_index AS i
-CROSS JOIN LATERAL unnest(i.indkey) WITH ORDINALITY AS k(attnum, ordinal)
-JOIN pg_attribute AS a ON a.attrelid = i.indrelid AND a.attnum = k.attnum
-WHERE i.indexrelid = to_regclass(?)
-ORDER BY k.ordinal`, "idx_audit_time_event").Scan(&columns).Error)
+SELECT attribute.attname
+FROM pg_catalog.pg_index AS index_meta
+CROSS JOIN LATERAL unnest(index_meta.indkey) WITH ORDINALITY AS index_column(attnum, ordinal_position)
+JOIN pg_catalog.pg_attribute AS attribute
+  ON attribute.attrelid = index_meta.indrelid AND attribute.attnum = index_column.attnum
+WHERE index_meta.indexrelid = to_regclass(?)
+ORDER BY index_column.ordinal_position
+`, index.Name()).Scan(&columns).Error)
+					} else {
+						columns = index.Columns()
 					}
 					assert.Equal(t, []string{"created_at", "event_id"}, columns)
 					for _, original := range originalIndexes {

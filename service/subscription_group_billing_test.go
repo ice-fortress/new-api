@@ -76,9 +76,10 @@ func TestSubscriptionGroupBillingSettlementKeepsSelectedSubscriptionAfterPlanEdi
 
 func TestSubscriptionGroupBillingCrossGroupRetryIsRejectedAndRefundsOriginal(t *testing.T) {
 	for _, tc := range []struct {
-		name       string
-		imageCount int
-	}{{"text", 0}, {"image", 2}} {
+		name         string
+		imageCount   int
+		beforeSubmit bool
+	}{{"text", 0, false}, {"image", 2, false}, {"task retry", 0, true}} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, info := setupSubscriptionGroupBilling(t)
 			info.ImageRequestCount = tc.imageCount
@@ -88,11 +89,17 @@ func TestSubscriptionGroupBillingCrossGroupRetryIsRejectedAndRefundsOriginal(t *
 			session, apiErr := NewBillingSession(ctx, info, 100)
 			require.Nil(t, apiErr)
 			info.Billing = session
-			require.NoError(t, session.Reserve(150))
+			reserve := session.Reserve
+			if tc.beforeSubmit {
+				reserve = session.ReserveBeforeSubmit
+			}
+			require.NoError(t, reserve(150))
 			assert.Nil(t, ValidateSubscriptionBillingGroup(info))
 			info.UsingGroup = "default"
 			require.NotNil(t, ValidateSubscriptionBillingGroup(info))
-			require.Error(t, session.Reserve(200))
+			require.Error(t, reserve(200))
+			assert.Equal(t, 150, session.GetPreConsumedQuota())
+			assert.Equal(t, int64(150), subscriptionGroupUsed(t, 71002))
 			require.Error(t, session.Settle(50))
 			session.Refund(ctx)
 			session.Refund(ctx)
