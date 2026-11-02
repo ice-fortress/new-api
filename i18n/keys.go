@@ -41,6 +41,8 @@ const (
 	MsgQuotaSubscriptionGroupMismatch    = "quota.subscription_group_mismatch"
 	MsgRelayModelPriceNotConfigured      = "relay.model_price_not_configured"
 	MsgRelayModelPriceNotConfiguredAdmin = "relay.model_price_not_configured_admin"
+	MsgRelayTaskUsagePriceUnsupported    = "relay.task_usage_price_unsupported"
+	MsgRelaySharedTaskPriceNeedsOverride = "relay.shared_task_price_needs_override"
 	MsgRelayTaskChannelDisabled          = "relay.task_channel_disabled"
 	MsgRelayGroupSaturated               = "relay.group_saturated"
 	MsgRelayGroupUpstreamSaturated       = "relay.group_upstream_saturated"
