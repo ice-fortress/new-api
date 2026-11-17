@@ -63,6 +63,7 @@ import {
   useApiInfo,
   useDashboardContentVisibility,
 } from '../../hooks/use-status-data'
+import { AnnouncementPopup } from './announcement-popup'
 import { AnnouncementsPanel } from './announcements-panel'
 import { ApiInfoPanel } from './api-info-panel'
 import { FAQPanel } from './faq-panel'
@@ -629,6 +630,7 @@ export function OverviewDashboard() {
 
   return (
     <SectionPageLayout>
+      <AnnouncementPopup />
       <SectionPageLayout.Title>{t('Overview')}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
         {setupStatusReady && setupComplete && (

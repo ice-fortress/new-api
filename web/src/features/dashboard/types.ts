@@ -263,6 +263,8 @@ export interface AnnouncementItem {
   publishDate?: string
   type?: 'default' | 'ongoing' | 'success' | 'warning' | 'error'
   extra?: string
+  /** When true, the overview page opens this announcement in a dialog. */
+  popup?: boolean
 }
 
 // ============================================================================

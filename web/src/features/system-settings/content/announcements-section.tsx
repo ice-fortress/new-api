@@ -59,6 +59,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { toIntlLocale } from '@/i18n/languages'
 import dayjs from '@/lib/dayjs'
@@ -75,6 +76,7 @@ type Announcement = {
   publishDate: string
   type: 'default' | 'ongoing' | 'success' | 'warning' | 'error'
   extra?: string
+  popup?: boolean
 }
 
 type AnnouncementsSectionProps = {
@@ -93,6 +95,7 @@ const announcementSchema = z.object({
     .string()
     .max(100, 'Extra must be less than 100 characters')
     .optional(),
+  popup: z.boolean(),
 })
 
 type AnnouncementFormValues = z.infer<typeof announcementSchema>
@@ -156,6 +159,7 @@ export function AnnouncementsSection({
       publishDate: new Date().toISOString(),
       type: 'default',
       extra: '',
+      popup: false,
     },
   })
 
@@ -199,6 +203,7 @@ export function AnnouncementsSection({
       publishDate: new Date().toISOString(),
       type: 'default',
       extra: '',
+      popup: false,
     })
     setShowDialog(true)
   }
@@ -210,6 +215,7 @@ export function AnnouncementsSection({
       publishDate: announcement.publishDate,
       type: announcement.type,
       extra: announcement.extra || '',
+      popup: announcement.popup === true,
     })
     setShowDialog(true)
   }
@@ -415,6 +421,11 @@ export function AnnouncementsSection({
               cell: (announcement) => announcement.extra || '-',
             },
             {
+              id: 'popup',
+              header: t('Home popup'),
+              cell: (announcement) => (announcement.popup ? t('Yes') : t('No')),
+            },
+            {
               id: 'actions',
               header: t('Actions'),
               cell: (announcement) => (
@@ -574,6 +585,31 @@ export function AnnouncementsSection({
                       'Optional supplementary information (max 100 characters)'
                     )}
                   </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='popup'
+              render={({ field }) => (
+                <FormItem>
+                  <div className='flex items-center justify-between gap-4'>
+                    <div className='space-y-1'>
+                      <FormLabel>{t('Show as home popup')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Show this announcement in a dialog on the overview page'
+                        )}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}

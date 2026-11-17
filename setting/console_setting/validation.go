@@ -198,6 +198,11 @@ func validateAnnouncements(announcementsStr string) error {
 				}
 			}
 		}
+		if popup, exists := ann["popup"]; exists {
+			if _, ok := popup.(bool); !ok {
+				return common.NewMessage("Announcement #{{index}} popup field must be a boolean", map[string]any{"index": i + 1})
+			}
+		}
 		if exceedsMaxCharacters(content, 500) {
 			return common.NewMessage("Announcement #{{index}} content cannot exceed 500 characters", map[string]any{"index": i + 1})
 		}
